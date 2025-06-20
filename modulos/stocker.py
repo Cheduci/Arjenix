@@ -109,12 +109,12 @@ def create_table(conn, schema_path="schema.sql"):
 def table_exists(conn):
     try:
         with conn.cursor() as cursor:
-            cursor.execute(sql.SQL("""
+            cursor.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
                     WHERE table_name = 'productos'
                 )
-            """))
+            """)
             exists = cursor.fetchone()[0]
             return exists
     except Exception as e:
