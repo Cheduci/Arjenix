@@ -1,5 +1,8 @@
-BD_name = "stocker"
-DB_user = "postgres"
-DB_password = 39416072
-DB_host = "localhost"
-DB_port = 5432
+from getpass import getpass
+
+dbname="stocker"
+user="postgres"
+# password=getpass("Ingrese la contraseña de la base de datos: ")
+password="39416072"
+host="127.0.0.1"
+port=5432

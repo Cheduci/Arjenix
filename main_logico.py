@@ -1,40 +1,40 @@
 from modulos.stocker import *
-from modulos.config import *
 
+def menu():
+    print("\n🛍️  GESTOR DE TIENDA")
+    print("═════════════════════════")
+    print("[1] Agregar producto")
+    print("[2] Vender (próximamente)")
+    print("[3] Consultar stock (próximamente)")
+    print("[0] Salir")
+    return input("Seleccione una opción: ").strip()
 
+if __name__ == "__main__":
+    if not existe_db():
+        crear_db()
+    conexion = conectar_db()
 
-conexion = connect_to_db()
-if conexion:
-    print("\n¡Ya tienes una conexión válida para trabajar con tu base de datos!")   
-    if not table_exists(conexion):
-        create_table(conexion)
-    else:
-        print(f"La tabla 'productos' ya existe en la base de datos {BD_name}.")
+    create_table(conexion)
 
-    # while True:
-    #     print("\n--- Menú Principal ---")
-    #     print("1. Agregar Producto")
-    #     print("2. Actualizar Producto")
-    #     print("3. Eliminar Producto")
-    #     print("4. Consultar Productos")
-    #     print("0. Salir")
+    while True:
+        opcion = menu()
+        if opcion == "0":
+            print("👋 Cerrando el programa...")
+            break
 
-    #     opcion = input("Seleccione una opción: ")
+        with conexion.cursor() as cur:
+            if opcion == "1":
+                datos = solicitar_datos_producto(cur)
+                insertar_producto(cur, datos)
+                conexion.commit()
 
-    #     if opcion == "1":
-    #         datos = solicitar_datos_producto()
-    #         new_product(conexion, datos)
-    #     elif opcion == "2":
-    #         print("Actualizar Producto")
-    #     elif opcion == "3":
-    #         print("Eliminar Producto")
-    #     elif opcion == "4":
-    #         print("Consultar Productos")
-    #     elif opcion == "0":
-    #         print("Saliendo del programa...")
-    #         break
-    #     else:
-    #         print("Opción no válida, por favor intente de nuevo.")
+            elif opcion == "2":
+                print("📦 Consulta de stock aún no disponible.")
 
-else:
-    print("No se pudo establecer una conexión con la base de datos. Verifica los detalles de conexión.")
+            elif opcion == "3":
+                print("🛒 Función de venta aún no implementada.")
+
+            else:
+                print("❌ Opción inválida. Ingrese 0, 1, 2 o 3.")
+
+    conexion.close()
