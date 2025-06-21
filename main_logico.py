@@ -4,8 +4,8 @@ def menu():
     print("\n🛍️  GESTOR DE TIENDA")
     print("═════════════════════════")
     print("[1] Agregar producto")
-    print("[2] Vender (próximamente)")
-    print("[3] Consultar stock (próximamente)")
+    print("[2] Consultar stock")
+    print("[3] Vender (próximamente)")
     print("[0] Salir")
     return input("Seleccione una opción: ").strip()
 
@@ -29,7 +29,7 @@ if __name__ == "__main__":
                 conexion.commit()
 
             elif opcion == "2":
-                print("📦 Consulta de stock aún no disponible.")
+                consultar_productos(cur)
 
             elif opcion == "3":
                 print("🛒 Función de venta aún no implementada.")

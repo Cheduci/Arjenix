@@ -7,6 +7,13 @@ import os
 import cv2
 from datetime import datetime
 import unicodedata
+import webbrowser
+import tempfile
+import barcode
+from barcode import get as get_barcode
+from barcode.writer import ImageWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
 
 def existe_db():
     try:
@@ -119,33 +126,29 @@ class GeneradorEAN13:
                 return ean13
 
 def capturar_foto(nombre_producto):
-    carpeta = os.path.join("bbdd", "fotos")
-    os.makedirs(carpeta, exist_ok=True)
-
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("Error al abrir la cámara.")
+        print("❌ Error al abrir la cámara.")
         return None
-    
-    print("Presione ESPACIO para capturar una foto o ESC para salir sin capturar.")
+
+    print("📸 Presione ESPACIO para capturar o ESC para cancelar.")
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Error al capturar la imagen.")
+            print("❌ Error al capturar la imagen.")
             break
-        
+
         cv2.imshow("Vista previa - Cámara", frame)
         key = cv2.waitKey(1) & 0xFF
         if key == 32:  # ESPACIO
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             nombre_limpio = unicodedata.normalize("NFKD", nombre_producto).encode("ascii", "ignore").decode()
-            archivo = f"{nombre_producto}_{timestamp}.jpg".replace(" ", "_")
-            path = os.path.join(carpeta, archivo)
-            cv2.imwrite(path, frame)
-            print(f"Foto capturada y guardada como {archivo}.")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            archivo_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+            cv2.imwrite(archivo_temp.name, frame)
             cap.release()
             cv2.destroyAllWindows()
-            return path
+            print(f"✅ Foto capturada.")
+            return archivo_temp.name
         elif key == 27:  # ESC
             print("🚫 Captura cancelada.")
             break
@@ -269,7 +272,13 @@ def solicitar_datos_producto(cur):
     def leer_imagen_binaria(path):
         if path and os.path.exists(path):
             with open(path, "rb") as f:
-                return f.read()
+                contenido = f.read()
+            try:
+                os.remove(path)
+                print(f"🧹 Imagen temporal eliminada: {path}")
+            except Exception as e:
+                print(f"⚠️ No se pudo borrar la imagen temporal: {e}")
+            return contenido
         return None
 
     print("\n🛒 Ingrese los datos del nuevo producto:")
@@ -323,3 +332,457 @@ def insertar_producto(cur, datos):
 
     except Exception as e:
         print(f"❌ Error al insertar producto: {e}")
+
+def mostrar_todos_los_productos(cur):
+    try:
+        cur.execute("""
+            SELECT id, nombre, stock_actual, precio_venta
+            FROM productos
+            ORDER BY nombre;
+        """)
+        productos = cur.fetchall()
+
+        if not productos:
+            print("⚠️ No hay productos registrados.")
+            return
+
+        print("\n🧾 Lista de productos:")
+        print(f"{'ID':>3} | {'Nombre':<25} | {'Stock':>5} | {'Precio':>8}")
+        print("-" * 50)
+        for id_, nombre, stock, precio in productos:
+            print(f"{id_:>3} | {nombre:<25} | {stock:>5} | ${precio:>7.2f}")
+        print("-" * 50)
+
+        # Nueva sección interactiva
+        while True:
+            print("\nOpciones:")
+            print("[A] Seleccionar un producto")
+            print("[B] Volver al menú")
+            eleccion = input("Seleccione una opción: ").strip().lower()
+
+            if eleccion == "a":
+                try:
+                    id_prod = int(input("Ingrese el ID del producto: ").strip())
+                    mostrar_ficha_producto(cur, id_prod)
+                except ValueError:
+                    print("⚠️ Ingrese un número válido.")
+                break
+            elif eleccion == "b":
+                break
+            else:
+                print("❌ Opción no válida.")
+
+
+    except Exception as e:
+        print(f"❌ Error al consultar productos: {e}")
+
+def consultar_por_categoria(cur):
+    try:
+        cur.execute("SELECT id, nombre FROM categorias ORDER BY nombre;")
+        categorias = cur.fetchall()
+        if not categorias:
+            print("⚠️ No hay categorías registradas.")
+            return
+        
+        print("\n📂 Categorías disponibles:")
+        for id_, nombre in categorias:
+            print(f"  {id_:>3} - {nombre}")
+        
+        id_cat = input("Seleccione el ID de la categoría: ").strip()
+        if not id_cat.isdigit():
+            print("⚠️ Debe ingresar un número válido.")
+            return
+        
+        cur.execute("""
+            SELECT id, nombre, stock_actual, precio_venta
+            FROM productos
+            WHERE categoria_id = %s
+            ORDER BY nombre;
+        """, (int(id_cat),))
+        productos = cur.fetchall()
+
+        if not productos:
+            print("⚠️ No hay productos en esa categoría.")
+            return
+
+        print(f"\n📦 Productos en categoría ID {id_cat}:")
+        print(f"{'ID':>3} | {'Nombre':<25} | {'Stock':>5} | {'Precio':>8}")
+        print("-" * 50)
+        for id_, nombre, stock, precio in productos:
+            print(f"{id_:>3} | {nombre:<25} | {stock:>5} | ${precio:>7.2f}")
+        print("-" * 50)
+
+        # Nueva sección interactiva
+        while True:
+            print("\nOpciones:")
+            print("[A] Seleccionar un producto")
+            print("[B] Volver al menú")
+            eleccion = input("Seleccione una opción: ").strip().lower()
+
+            if eleccion == "a":
+                try:
+                    id_prod = int(input("Ingrese el ID del producto: ").strip())
+                    mostrar_ficha_producto(cur, id_prod)
+                except ValueError:
+                    print("⚠️ Ingrese un número válido.")
+                break
+            elif eleccion == "b":
+                break
+            else:
+                print("❌ Opción no válida.")
+
+
+    except Exception as e:
+        print(f"❌ Error al consultar por categoría: {e}")
+
+def consultar_por_stock(cur):
+    def mostrar_productos(productos):
+        if not productos:
+            print("⚠️ No se encontraron productos en ese criterio.")
+            return
+        print(f"\n📦 Resultados:")
+        print(f"{'ID':>3} | {'Nombre':<25} | {'Stock':>5} | {'Precio':>8}")
+        print("-" * 50)
+        for id_, nombre, stock, precio in productos:
+            print(f"{id_:>3} | {nombre:<25} | {stock:>5} | ${precio:>7.2f}")
+        print("-" * 50)
+
+        # Nueva sección interactiva
+        while True:
+            print("\nOpciones:")
+            print("[A] Seleccionar un producto")
+            print("[B] Volver al menú")
+            eleccion = input("Seleccione una opción: ").strip().lower()
+
+            if eleccion == "a":
+                try:
+                    id_prod = int(input("Ingrese el ID del producto: ").strip())
+                    mostrar_ficha_producto(cur, id_prod)
+                except ValueError:
+                    print("⚠️ Ingrese un número válido.")
+                break
+            elif eleccion == "b":
+                break
+            else:
+                print("❌ Opción no válida.")
+
+    concepto_abundante = 100
+    while True:
+        print("\n📊 CONSULTA POR STOCK")
+        print("[1] Productos sin stock (stock = 0)")
+        print("[2] Por debajo del stock mínimo")
+        print(f"[3] Stock abundante (stock >= {concepto_abundante})")
+        print("[0] Volver")
+        opcion = input("Seleccione una opción: ").strip()
+
+        if opcion == "0":
+            break
+        elif opcion == "1":
+            cur.execute("""
+                SELECT id, nombre, stock_actual, precio_venta
+                FROM productos
+                WHERE stock_actual = 0
+                ORDER BY nombre;
+            """)
+            mostrar_productos(cur.fetchall())
+        elif opcion == "2":
+            cur.execute("""
+                SELECT id, nombre, stock_actual, precio_venta
+                FROM productos
+                WHERE stock_minimo IS NOT NULL AND stock_actual <= stock_minimo
+                ORDER BY nombre;
+            """)
+            mostrar_productos(cur.fetchall())
+        elif opcion == "3":
+            cur.execute(f"""
+                SELECT id, nombre, stock_actual, precio_venta
+                FROM productos
+                WHERE stock_actual >= {concepto_abundante}
+                ORDER BY stock_actual DESC;
+            """)
+            mostrar_productos(cur.fetchall())
+        else:
+            print("❌ Opción inválida.")
+
+def consultar_por_precio(cur):
+    while True:
+        minimo = input("💰 Precio mínimo (ENTER para omitir): ").strip()
+        maximo = input("💰 Precio máximo (ENTER para omitir): ").strip()
+
+        min_val = float(minimo) if minimo.replace(".", "", 1).isdigit() else None
+        max_val = float(maximo) if maximo.replace(".", "", 1).isdigit() else None
+
+        if min_val is None and minimo:
+            print("⚠️ El mínimo debe ser un número válido o estar vacío.")
+            continue
+        if max_val is None and maximo:
+            print("⚠️ El máximo debe ser un número válido o estar vacío.")
+            continue
+        if min_val is not None and max_val is not None and min_val > max_val:
+            print("⚠️ El mínimo no puede ser mayor que el máximo.")
+            continue
+
+        # Construir cláusula SQL dinámica
+        query = "SELECT id, nombre, stock_actual, precio_venta FROM productos WHERE TRUE"
+        params = []
+        if min_val is not None:
+            query += " AND precio_venta >= %s"
+            params.append(min_val)
+        if max_val is not None:
+            query += " AND precio_venta <= %s"
+            params.append(max_val)
+        query += " ORDER BY precio_venta;"
+
+        try:
+            cur.execute(query, tuple(params))
+            productos = cur.fetchall()
+            if not productos:
+                print("⚠️ No se encontraron productos en ese rango.")
+            else:
+                rango = ""
+                if min_val is not None and max_val is not None:
+                    rango = f"${min_val:.2f} a ${max_val:.2f}"
+                elif min_val is not None:
+                    rango = f"mayores a ${min_val:.2f}"
+                elif max_val is not None:
+                    rango = f"menores a ${max_val:.2f}"
+                else:
+                    rango = "todos los precios"
+
+                print(f"\n📦 Productos ({rango}):")
+                print(f"{'ID':>3} | {'Nombre':<25} | {'Stock':>5} | {'Precio':>8}")
+                print("-" * 50)
+                for id_, nombre, stock, precio in productos:
+                    print(f"{id_:>3} | {nombre:<25} | {stock:>5} | ${precio:>7.2f}")
+                print("-" * 50)
+
+                # Nueva sección interactiva
+                while True:
+                    print("\nOpciones:")
+                    print("[A] Seleccionar un producto")
+                    print("[B] Volver al menú")
+                    eleccion = input("Seleccione una opción: ").strip().lower()
+
+                    if eleccion == "a":
+                        try:
+                            id_prod = int(input("Ingrese el ID del producto: ").strip())
+                            mostrar_ficha_producto(cur, id_prod)
+                        except ValueError:
+                            print("⚠️ Ingrese un número válido.")
+                        break
+                    elif eleccion == "b":
+                        break
+                    else:
+                        print("❌ Opción no válida.")
+            break
+        except Exception as e:
+            print(f"❌ Error al consultar por precio: {e}")
+            break
+
+def buscar_producto(cur):
+    while True:
+        print("\n🔎 BUSCAR PRODUCTO")
+        print("[1] Buscar por nombre")
+        print("[2] Buscar por código de barras")
+        print("[0] Volver")
+        opcion = input("Seleccione una opción: ").strip()
+
+        if opcion == "0":
+            break
+        elif opcion == "1":
+            texto = input("Ingrese parte del nombre: ").strip()
+            if not texto:
+                print("⚠️ El texto no puede estar vacío.")
+                continue
+            cur.execute("""
+                SELECT id, nombre, stock_actual, precio_venta
+                FROM productos
+                WHERE nombre ILIKE %s
+                ORDER BY nombre;
+            """, (f"%{texto}%",))
+            productos = cur.fetchall()
+        elif opcion == "2":
+            codigo = input("Ingrese el código de barras o parte de él: ").strip()
+            if not codigo:
+                print("⚠️ El código no puede estar vacío.")
+                continue
+            cur.execute("""
+                SELECT id, nombre, stock_actual, precio_venta
+                FROM productos
+                WHERE codigo_barra ILIKE %s
+                ORDER BY nombre;
+            """, (f"%{codigo}%",))
+            productos = cur.fetchall()
+
+        # elif opcion == "2":
+        #     usar_escaneo = input("¿Escanear código con cámara? [s/n]: ").strip().lower()
+        #     if usar_escaneo == "s":
+        #         codigo = escanear_codigo_opencv()
+        #     else:
+        #         codigo = input("Ingrese el código o parte del código: ").strip()
+
+        else:
+            print("❌ Opción inválida.")
+            continue
+
+        if not productos:
+            print("⚠️ No se encontraron coincidencias.")
+        else:
+            print("\n📦 Resultados de búsqueda:")
+            print(f"{'ID':>3} | {'Nombre':<25} | {'Stock':>5} | {'Precio':>8}")
+            print("-" * 50)
+            for id_, nombre, stock, precio in productos:
+                print(f"{id_:>3} | {nombre:<25} | {stock:>5} | ${precio:>7.2f}")
+            print("-" * 50)
+
+            # Nueva sección interactiva
+            while True:
+                print("\nOpciones:")
+                print("[A] Seleccionar un producto")
+                print("[B] Volver al menú")
+                eleccion = input("Seleccione una opción: ").strip().lower()
+
+                if eleccion == "a":
+                    try:
+                        id_prod = int(input("Ingrese el ID del producto: ").strip())
+                        mostrar_ficha_producto(cur, id_prod)
+                    except ValueError:
+                        print("⚠️ Ingrese un número válido.")
+                    break
+                elif eleccion == "b":
+                    break
+                else:
+                    print("❌ Opción no válida.")
+
+def mostrar_ficha_producto(cur, producto_id):
+    try:
+        cur.execute("""
+            SELECT p.nombre, p.codigo_barra, p.precio_compra, p.precio_venta,
+                   p.stock_actual, p.stock_minimo, c.nombre AS categoria,
+                   p.foto IS NOT NULL AS tiene_foto
+            FROM productos p
+            LEFT JOIN categorias c ON p.categoria_id = c.id
+            WHERE p.id = %s;
+        """, (producto_id,))
+        prod = cur.fetchone()
+        if not prod:
+            print("❌ Producto no encontrado.")
+            return
+
+        (nombre, codigo, compra, venta, stock, minimo, categoria, tiene_foto) = prod
+        print("\n🧾 Ficha del producto")
+        print("──────────────────────")
+        print(f"📌 Nombre: {nombre}")
+        print(f"🏷️  Código EAN13: {codigo}")
+        print(f"📂 Categoría: {categoria if categoria else 'Sin asignar'}")
+        print(f"💰 Precio de compra: ${compra:.2f}")
+        print(f"💸 Precio de venta:  ${venta:.2f}")
+        print(f"📦 Stock actual: {stock} unidades")
+        print(f"📉 Stock mínimo: {minimo if minimo is not None else '—'}")
+        print(f"{'📸 Foto disponible' if tiene_foto else '🖼️ Sin foto'}")
+
+        if tiene_foto:
+            ver = input("¿Desea ver la foto? [s/n]: ").strip().lower()
+            if ver == "s":
+                guardar_y_abrir_foto(cur, producto_id)
+
+        exportar = input("🖨️ ¿Exportar código de barras a PDF? [s/n]: ").strip().lower()
+        if exportar == "s":
+            while True:
+                cantidad = input("¿Cuántas etiquetas desea generar? ").strip()
+                if cantidad.isdigit() and int(cantidad) > 0:
+                    exportar_codigo_pdf(nombre, codigo,cantidad)
+                    
+                    break
+                else:
+                    print("Ingrese un número entero")
+
+    except Exception as e:
+        print(f"❌ Error al mostrar el producto: {e}")
+
+def guardar_y_abrir_foto(cur, producto_id):
+    cur.execute("SELECT foto FROM productos WHERE id = %s;", (producto_id,))
+    fila = cur.fetchone()
+    if fila and fila[0]:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+            tmp.write(fila[0])
+            tmp_path = tmp.name
+        webbrowser.open(tmp_path)
+    else:
+        print("⚠️ El producto no tiene una foto guardada.")
+
+def exportar_codigo_pdf(nombre, codigo, cantidad):
+    try:
+        cantidad = int(cantidad)
+        if cantidad <= 0:
+            print("⚠️ La cantidad debe ser mayor a cero.")
+            return
+
+        # Dimensiones
+        etiquetas_por_fila = 5
+        etiquetas_por_columna = 8
+        max_etiquetas = etiquetas_por_fila * etiquetas_por_columna  # 40 por hoja
+        etiquetas_a_imprimir = min(cantidad, max_etiquetas)
+
+        # Generar código de barras como imagen PNG temporal
+        tmp_path_base = tempfile.mktemp()
+        ean = barcode.get('ean13', codigo, writer=ImageWriter())
+        imagen_path = ean.save(tmp_path_base)
+
+        # Preparar PDF
+        pdf_path = os.path.join(os.getcwd(), f"etiquetas_{codigo}.pdf")
+        c = canvas.Canvas(pdf_path, pagesize=A4)
+        pagina_ancho, pagina_alto = A4
+
+        margen_izq = 40
+        margen_sup = 60
+        espaciado_x = 100
+        espaciado_y = 60
+
+        for i in range(etiquetas_a_imprimir):
+            fila = i // etiquetas_por_fila
+            col = i % etiquetas_por_fila
+            x = margen_izq + col * espaciado_x
+            y = pagina_alto - margen_sup - fila * espaciado_y
+
+            c.drawInlineImage(imagen_path, x, y - 20, width=80, height=30)
+            c.setFont("Helvetica", 8)
+            c.drawString(x, y + 5, nombre[:25])
+            c.drawString(x, y - 28, f"EAN13: {codigo}")
+
+        c.showPage()
+        c.save()
+
+        os.remove(imagen_path)
+        webbrowser.open(pdf_path)
+        print(f"✅ PDF generado: {pdf_path}")
+
+        if cantidad > etiquetas_a_imprimir:
+            print(f"ℹ️ Se generó una hoja con {etiquetas_a_imprimir}. Podés imprimir {cantidad // etiquetas_a_imprimir} copias para cubrir la cantidad deseada.")
+
+    except Exception as e:
+        print(f"❌ Error al generar etiquetas: {e}")
+
+def consultar_productos(cur):
+    while True:
+        print("\n📦 CONSULTAR PRODUCTOS")
+        print("══════════════════════════")
+        print("[1] Ver todos los productos")
+        print("[2] Filtrar por categoría")
+        print("[3] Filtrar por stock (pendiente)")
+        print("[4] Filtrar por precio (pendiente)")
+        print("[5] Buscar por nombre o código (pendiente)")
+        print("[0] Volver al menú principal")
+        opcion = input("Seleccione una opción: ").strip()
+        if opcion == "0":
+            break
+        elif opcion == "1":
+            mostrar_todos_los_productos(cur)
+        elif opcion == "2":
+            consultar_por_categoria(cur)
+        elif opcion == "3":
+            consultar_por_stock(cur)
+        elif opcion == "4":
+            consultar_por_precio(cur)
+        else:
+            print("❌ Opción inválida.")
