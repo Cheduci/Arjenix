@@ -14,6 +14,9 @@ from barcode import get as get_barcode
 from barcode.writer import ImageWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+import numpy as np
+from pyzbar.pyzbar import decode
+
 
 def existe_db():
     try:
@@ -181,7 +184,7 @@ def categoria_existe(cur, id_categoria):
 def solicitar_datos_producto(cur):
     def pedir_texto(campo):
         while True:
-            valor = input(f"Ingrese {campo}: ").strip()
+            valor = input(f"Ingrese {campo}: ").strip().capitalize()
             if valor:
                 return valor
             print(f"El campo {campo} no puede estar vacío.")
@@ -602,7 +605,12 @@ def buscar_producto(cur):
             """, (f"%{texto}%",))
             productos = cur.fetchall()
         elif opcion == "2":
-            codigo = input("Ingrese el código de barras o parte de él: ").strip()
+            usar_escaneo = input("¿Escanear código con cámara? [s/n]: ").strip().lower()
+            if usar_escaneo == "s":
+                codigo = escanear_codigo_opencv()
+            else:
+                codigo = input("Ingrese el código o parte del código manualmente: ").strip()
+            
             if not codigo:
                 print("⚠️ El código no puede estar vacío.")
                 continue
@@ -611,15 +619,8 @@ def buscar_producto(cur):
                 FROM productos
                 WHERE codigo_barra ILIKE %s
                 ORDER BY nombre;
-            """, (f"%{codigo}%",))
+            """, (f'%{codigo}%',))
             productos = cur.fetchall()
-
-        # elif opcion == "2":
-        #     usar_escaneo = input("¿Escanear código con cámara? [s/n]: ").strip().lower()
-        #     if usar_escaneo == "s":
-        #         codigo = escanear_codigo_opencv()
-        #     else:
-        #         codigo = input("Ingrese el código o parte del código: ").strip()
 
         else:
             print("❌ Opción inválida.")
@@ -653,6 +654,54 @@ def buscar_producto(cur):
                     break
                 else:
                     print("❌ Opción no válida.")
+
+def escanear_codigo_opencv():
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("❌ No se pudo acceder a la cámara.")
+        return None
+
+    print("📷 Escaneando... Presione ESC para cancelar.")
+    codigo_detectado = None
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("⚠️ Error al capturar imagen.")
+            break
+
+        decoded_objs = decode(frame)
+
+        for obj in decoded_objs:
+            puntos = obj.polygon
+            if len(puntos) > 4:
+                hull = cv2.convexHull(
+                    np.array([p for p in puntos], dtype=np.float32)
+                )
+                hull = list(map(tuple, np.squeeze(hull)))
+            else:
+                hull = puntos
+
+            cv2.polylines(frame, [np.array(hull, dtype=np.int32)], True, (0, 255, 0), 2)
+            x = int(hull[0][0])
+            y = int(hull[0][1]) - 10
+            cv2.putText(frame, obj.data.decode("utf-8"), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 255, 50), 2)
+            codigo_detectado = obj.data.decode("utf-8")
+
+        cv2.imshow("Escaneo de código", frame)
+        key = cv2.waitKey(1) & 0xFF
+
+        if codigo_detectado and len(codigo_detectado) == 13:
+            codigo_detectado = codigo_detectado[:12]
+            print(f"✅ Código detectado: {codigo_detectado}")
+            break
+        if key == 27:  # ESC
+            print("🚫 Escaneo cancelado.")
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+    return codigo_detectado
 
 def mostrar_ficha_producto(cur, producto_id):
     try:
@@ -691,7 +740,7 @@ def mostrar_ficha_producto(cur, producto_id):
             while True:
                 cantidad = input("¿Cuántas etiquetas desea generar? ").strip()
                 if cantidad.isdigit() and int(cantidad) > 0:
-                    exportar_codigo_pdf(nombre, codigo,cantidad)
+                    exportar_codigo_pdf(nombre, codigo, venta, cantidad)
                     
                     break
                 else:
@@ -711,7 +760,7 @@ def guardar_y_abrir_foto(cur, producto_id):
     else:
         print("⚠️ El producto no tiene una foto guardada.")
 
-def exportar_codigo_pdf(nombre, codigo, cantidad):
+def exportar_codigo_pdf(nombre, codigo, precio, cantidad):
     try:
         cantidad = int(cantidad)
         if cantidad <= 0:
@@ -745,10 +794,13 @@ def exportar_codigo_pdf(nombre, codigo, cantidad):
             x = margen_izq + col * espaciado_x
             y = pagina_alto - margen_sup - fila * espaciado_y
 
-            c.drawInlineImage(imagen_path, x, y - 20, width=80, height=30)
+            c.drawInlineImage(imagen_path, x, y + 3, width=80, height=30)  # Imagen primero, Más arriba
+
             c.setFont("Helvetica", 8)
-            c.drawString(x, y + 5, nombre[:25])
-            c.drawString(x, y - 28, f"EAN13: {codigo}")
+            c.drawString(x, y - 3, nombre[:25])  # Más separado hacia abajo del código
+            c.drawString(x, y - 15, f"${precio:.2f}")
+
+
 
         c.showPage()
         c.save()
@@ -769,9 +821,9 @@ def consultar_productos(cur):
         print("══════════════════════════")
         print("[1] Ver todos los productos")
         print("[2] Filtrar por categoría")
-        print("[3] Filtrar por stock (pendiente)")
-        print("[4] Filtrar por precio (pendiente)")
-        print("[5] Buscar por nombre o código (pendiente)")
+        print("[3] Filtrar por stock")
+        print("[4] Filtrar por precio")
+        print("[5] Buscar por nombre o código")
         print("[0] Volver al menú principal")
         opcion = input("Seleccione una opción: ").strip()
         if opcion == "0":
@@ -784,5 +836,7 @@ def consultar_productos(cur):
             consultar_por_stock(cur)
         elif opcion == "4":
             consultar_por_precio(cur)
+        elif opcion == "5":
+            buscar_producto(cur)
         else:
             print("❌ Opción inválida.")
