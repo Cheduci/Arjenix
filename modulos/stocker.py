@@ -691,8 +691,9 @@ def escanear_codigo_opencv():
         cv2.imshow("Escaneo de código", frame)
         key = cv2.waitKey(1) & 0xFF
 
-        if codigo_detectado and len(codigo_detectado) == 13:
-            codigo_detectado = codigo_detectado[:12]
+        if codigo_detectado:
+            if len(codigo_detectado) == 13:
+                codigo_detectado = codigo_detectado[:12]
             print(f"✅ Código detectado: {codigo_detectado}")
             break
         if key == 27:  # ESC
