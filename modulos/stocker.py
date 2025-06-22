@@ -1,7 +1,4 @@
-from . import config
-import psycopg
-from psycopg import OperationalError
-from psycopg.rows import dict_row
+from . import scaner
 import random
 import os
 import cv2
@@ -10,103 +7,10 @@ import unicodedata
 import webbrowser
 import tempfile
 import barcode
-from barcode import get as get_barcode
 from barcode.writer import ImageWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-import numpy as np
 from pyzbar.pyzbar import decode
-
-
-def existe_db():
-    try:
-        with psycopg.connect(
-            dbname="postgres",
-            user=config.user,
-            password=config.password,
-            host=config.host,
-            port=config.port,
-            autocommit=True
-        ) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM pg_database WHERE datname = %s;", (config.dbname,))
-                return cur.fetchone() is not None
-    except Exception as e:
-        print(f"❌ Error al verificar la existencia de la base de datos: {e}")
-        return False
-
-def crear_db():
-    try:
-        with psycopg.connect(
-            dbname="postgres",
-            user=config.user,
-            password=config.password,
-            host=config.host,
-            port=config.port,
-            autocommit=True
-        ) as conn:
-            with conn.cursor() as cur:
-                cur.execute(f"CREATE DATABASE {config.dbname};")
-                print(f"✅ Base de datos '{config.dbname}' creada.")
-    except Exception as e:
-        print(f"❌ Error al crear la base de datos: {e}")
-
-def conectar_db():
-    try:
-        conn = psycopg.connect(
-            dbname=config.dbname,
-            user=config.user,
-            password=config.password,
-            host=config.host,
-            port=config.port
-        )
-        print(f"🔌 Conectado a '{config.dbname}'")
-        return conn
-    except Exception as e:
-        print(f"❌ Error al conectar con la base de datos: {e}")
-        return None
-
-    
-def table_exists(conn, table_name):
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' AND table_name = %s
-                )
-            """, (table_name,))
-            return cursor.fetchone()[0]
-    except Exception as e:
-        print(f"⚠ Error al verificar la tabla '{table_name}': {e}")
-        return False
-
-def create_table(conn, schema_path=None):
-    try:
-        # Ruta al esquema
-        if schema_path is None:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-            schema_path = os.path.join(base_path, "..", "BBDD", "schema.sql")
-            schema_path = os.path.normpath(schema_path)
-
-        if table_exists(conn, "productos") and table_exists(conn, "categorias"):
-            print("ℹ️ Las tablas ya existen. No se creó nada.")
-            return
-
-        if not os.path.exists(schema_path):
-            raise FileNotFoundError(f"No se encontró el archivo: {schema_path}")
-
-        with open(schema_path, "r", encoding="utf-8") as f:
-            schema_sql = f.read()
-
-        with conn.cursor() as cur:
-            cur.execute(schema_sql)
-            conn.commit()
-            print("✅ Tablas creadas correctamente.")
-
-    except Exception as e:
-        print(f"❌ Error al crear las tablas: {e}")
-        conn.rollback()
 
 class GeneradorEAN13:
     def __init__(self, cursor, prefijo="77999"):
@@ -336,6 +240,34 @@ def insertar_producto(cur, datos):
     except Exception as e:
         print(f"❌ Error al insertar producto: {e}")
 
+def menu_seleccion_producto(cur, callback_mostrar_ficha):
+    while True:
+        print("\nOpciones:")
+        print("[A] Ver ficha de un producto")
+        print("[B] Modificar un producto")
+        print("[C] Eliminar un producto")
+        print("[X] Volver al menú")
+        eleccion = input("Seleccione una opción: ").strip().lower()
+
+        if eleccion in ("a", "b", "c"):
+            try:
+                id_prod = int(input("Ingrese el ID del producto: ").strip())
+            except ValueError:
+                print("⚠️ Ingrese un número válido.")
+                continue
+
+            if eleccion == "a":
+                callback_mostrar_ficha(cur, id_prod)
+            elif eleccion == "b":
+                modificar_producto(cur, id_prod)
+            elif eleccion == "c":
+                eliminar_producto(cur, id_prod)
+            break
+        elif eleccion == "x":
+            break
+        else:
+            print("❌ Opción no válida.")
+
 def mostrar_todos_los_productos(cur):
     try:
         cur.execute("""
@@ -357,23 +289,7 @@ def mostrar_todos_los_productos(cur):
         print("-" * 50)
 
         # Nueva sección interactiva
-        while True:
-            print("\nOpciones:")
-            print("[A] Seleccionar un producto")
-            print("[B] Volver al menú")
-            eleccion = input("Seleccione una opción: ").strip().lower()
-
-            if eleccion == "a":
-                try:
-                    id_prod = int(input("Ingrese el ID del producto: ").strip())
-                    mostrar_ficha_producto(cur, id_prod)
-                except ValueError:
-                    print("⚠️ Ingrese un número válido.")
-                break
-            elif eleccion == "b":
-                break
-            else:
-                print("❌ Opción no válida.")
+        menu_seleccion_producto(cur, mostrar_ficha_producto)
 
 
     except Exception as e:
@@ -416,23 +332,7 @@ def consultar_por_categoria(cur):
         print("-" * 50)
 
         # Nueva sección interactiva
-        while True:
-            print("\nOpciones:")
-            print("[A] Seleccionar un producto")
-            print("[B] Volver al menú")
-            eleccion = input("Seleccione una opción: ").strip().lower()
-
-            if eleccion == "a":
-                try:
-                    id_prod = int(input("Ingrese el ID del producto: ").strip())
-                    mostrar_ficha_producto(cur, id_prod)
-                except ValueError:
-                    print("⚠️ Ingrese un número válido.")
-                break
-            elif eleccion == "b":
-                break
-            else:
-                print("❌ Opción no válida.")
+        menu_seleccion_producto(cur, mostrar_ficha_producto)
 
 
     except Exception as e:
@@ -451,23 +351,7 @@ def consultar_por_stock(cur):
         print("-" * 50)
 
         # Nueva sección interactiva
-        while True:
-            print("\nOpciones:")
-            print("[A] Seleccionar un producto")
-            print("[B] Volver al menú")
-            eleccion = input("Seleccione una opción: ").strip().lower()
-
-            if eleccion == "a":
-                try:
-                    id_prod = int(input("Ingrese el ID del producto: ").strip())
-                    mostrar_ficha_producto(cur, id_prod)
-                except ValueError:
-                    print("⚠️ Ingrese un número válido.")
-                break
-            elif eleccion == "b":
-                break
-            else:
-                print("❌ Opción no válida.")
+        menu_seleccion_producto(cur, mostrar_ficha_producto)
 
     concepto_abundante = 100
     while True:
@@ -560,23 +444,7 @@ def consultar_por_precio(cur):
                 print("-" * 50)
 
                 # Nueva sección interactiva
-                while True:
-                    print("\nOpciones:")
-                    print("[A] Seleccionar un producto")
-                    print("[B] Volver al menú")
-                    eleccion = input("Seleccione una opción: ").strip().lower()
-
-                    if eleccion == "a":
-                        try:
-                            id_prod = int(input("Ingrese el ID del producto: ").strip())
-                            mostrar_ficha_producto(cur, id_prod)
-                        except ValueError:
-                            print("⚠️ Ingrese un número válido.")
-                        break
-                    elif eleccion == "b":
-                        break
-                    else:
-                        print("❌ Opción no válida.")
+                menu_seleccion_producto(cur, mostrar_ficha_producto)
             break
         except Exception as e:
             print(f"❌ Error al consultar por precio: {e}")
@@ -607,7 +475,7 @@ def buscar_producto(cur):
         elif opcion == "2":
             usar_escaneo = input("¿Escanear código con cámara? [s/n]: ").strip().lower()
             if usar_escaneo == "s":
-                codigo = escanear_codigo_opencv()
+                codigo = scaner.escanear_codigo_opencv()
             else:
                 codigo = input("Ingrese el código o parte del código manualmente: ").strip()
             
@@ -637,72 +505,7 @@ def buscar_producto(cur):
             print("-" * 50)
 
             # Nueva sección interactiva
-            while True:
-                print("\nOpciones:")
-                print("[A] Seleccionar un producto")
-                print("[B] Volver al menú")
-                eleccion = input("Seleccione una opción: ").strip().lower()
-
-                if eleccion == "a":
-                    try:
-                        id_prod = int(input("Ingrese el ID del producto: ").strip())
-                        mostrar_ficha_producto(cur, id_prod)
-                    except ValueError:
-                        print("⚠️ Ingrese un número válido.")
-                    break
-                elif eleccion == "b":
-                    break
-                else:
-                    print("❌ Opción no válida.")
-
-def escanear_codigo_opencv():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("❌ No se pudo acceder a la cámara.")
-        return None
-
-    print("📷 Escaneando... Presione ESC para cancelar.")
-    codigo_detectado = None
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("⚠️ Error al capturar imagen.")
-            break
-
-        decoded_objs = decode(frame)
-
-        for obj in decoded_objs:
-            puntos = obj.polygon
-            if len(puntos) > 4:
-                hull = cv2.convexHull(
-                    np.array([p for p in puntos], dtype=np.float32)
-                )
-                hull = list(map(tuple, np.squeeze(hull)))
-            else:
-                hull = puntos
-
-            cv2.polylines(frame, [np.array(hull, dtype=np.int32)], True, (0, 255, 0), 2)
-            x = int(hull[0][0])
-            y = int(hull[0][1]) - 10
-            cv2.putText(frame, obj.data.decode("utf-8"), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 255, 50), 2)
-            codigo_detectado = obj.data.decode("utf-8")
-
-        cv2.imshow("Escaneo de código", frame)
-        key = cv2.waitKey(1) & 0xFF
-
-        if codigo_detectado:
-            if len(codigo_detectado) == 13:
-                codigo_detectado = codigo_detectado[:12]
-            print(f"✅ Código detectado: {codigo_detectado}")
-            break
-        if key == 27:  # ESC
-            print("🚫 Escaneo cancelado.")
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-    return codigo_detectado
+            menu_seleccion_producto(cur, mostrar_ficha_producto)
 
 def mostrar_ficha_producto(cur, producto_id):
     try:
@@ -799,7 +602,7 @@ def exportar_codigo_pdf(nombre, codigo, precio, cantidad):
 
             c.setFont("Helvetica", 8)
             c.drawString(x, y - 3, nombre[:25])  # Más separado hacia abajo del código
-            c.drawString(x, y - 15, f"${precio:.2f}")
+            # c.drawString(x, y - 15, f"${precio:.2f}")
 
 
 
@@ -841,3 +644,137 @@ def consultar_productos(cur):
             buscar_producto(cur)
         else:
             print("❌ Opción inválida.")
+
+def modificar_producto(cur, producto_id=None):
+    print("\n🛠️ Modificar producto existente")
+    if producto_id is None:
+        codigo = scaner.obtener_codigo_barra()
+        if not codigo:
+            print("⚠️ No se obtuvo ningún código.")
+            return
+
+        cur.execute("""
+            SELECT p.id, p.nombre, c.id, c.nombre, p.precio_compra, p.precio_venta,
+                p.stock_actual, p.stock_minimo
+            FROM productos p
+            JOIN categorias c ON p.categoria_id = c.id
+            WHERE p.codigo_barra = %s;
+        """, (codigo,))
+    else:
+        cur.execute("""
+            SELECT p.id, p.nombre, c.id, c.nombre, p.precio_compra, p.precio_venta,
+                p.stock_actual, p.stock_minimo
+            FROM productos p
+            JOIN categorias c ON p.categoria_id = c.id
+            WHERE p.id = %s;
+        """, (producto_id,))
+    prod = cur.fetchone()
+
+    if not prod:
+        print("❌ Producto no encontrado.")
+        return
+
+    pid, nombre, categoria_id, categoria_nombre, pc, pv, stock, minimo = prod
+    print(f"\n🔎 Producto actual:")
+    print(f"📦 Nombre: {nombre}")
+    print(f"📁 Categoría: {categoria_nombre}")
+    print(f"💰 Precio compra: ${pc:.2f}")
+    print(f"💸 Precio venta:  ${pv:.2f}")
+    print(f"📦 Stock actual: {stock}")
+    print(f"⚠️  Stock mínimo: {minimo}")
+
+    nuevo_nombre = input(f"\n📝 Nuevo nombre [{nombre}]: ") or nombre
+
+    # Mostrar categorías
+    cur.execute("SELECT id, nombre FROM categorias ORDER BY nombre;")
+    categorias = cur.fetchall()
+    print("\n📚 Categorías disponibles:")
+    for cid, nom in categorias:
+        print(f"  {cid}. {nom}")
+    cat_input = input(f"➡️ Nueva categoría ID [{categoria_id}]: ")
+    nueva_categoria_id = int(cat_input) if cat_input else categoria_id
+
+    def convertir_valor(valor_input, original, tipo):
+        try:
+            return tipo(valor_input) if valor_input else original
+        except:
+            return original
+
+    nuevo_pc = convertir_valor(input(f"💰 Precio compra [{pc:.2f}]: "), pc, float)
+    nuevo_pv = convertir_valor(input(f"💸 Precio venta  [{pv:.2f}]: "), pv, float)
+    nuevo_stock = convertir_valor(input(f"📦 Stock actual   [{stock}]: "), stock, int)
+    nuevo_minimo = convertir_valor(input(f"⚠️  Stock mínimo   [{minimo}]: "), minimo, int)
+
+    actualizar_foto = input("📸 ¿Capturar nueva foto? (s/n): ").strip().lower()
+    foto_data = None
+    if actualizar_foto == "s":
+        ruta = capturar_foto(nuevo_nombre)
+        if ruta:
+            with open(ruta, "rb") as f:
+                foto_data = f.read()
+
+    try:
+        cur.execute("""
+            UPDATE productos SET
+                nombre = %s,
+                categoria_id = %s,
+                precio_compra = %s,
+                precio_venta = %s,
+                stock_actual = %s,
+                stock_minimo = %s,
+                foto = COALESCE(%s, foto)
+            WHERE id = %s;
+        """, (
+            nuevo_nombre, nueva_categoria_id,
+            nuevo_pc, nuevo_pv,
+            nuevo_stock, nuevo_minimo,
+            foto_data, pid
+        ))
+        cur.connection.commit()
+        print("✅ Producto actualizado correctamente.")
+    except Exception as e:
+        cur.connection.rollback()
+        print(f"❌ Error al actualizar: {e}")
+
+def eliminar_producto(cur, producto_id=None):
+    print("\n🗑️ Eliminar producto")
+    if producto_id is None:
+        codigo = scaner.obtener_codigo_barra()
+        if not codigo:
+            print("⚠️ No se pudo obtener el código.")
+            return
+
+        cur.execute("""
+            SELECT p.id, p.nombre, c.nombre, p.precio_venta, p.stock_actual
+            FROM productos p
+            JOIN categorias c ON p.categoria_id = c.id
+            WHERE p.codigo_barra = %s;
+        """, (codigo,))
+    else:
+        cur.execute("""
+            SELECT p.id, p.nombre, c.nombre, p.precio_venta, p.stock_actual
+            FROM productos p
+            JOIN categorias c ON p.categoria_id = c.id
+            WHERE p.id = %s;
+        """, (producto_id,))
+    prod = cur.fetchone()
+
+    if not prod:
+        print("❌ Producto no encontrado.")
+        return
+
+    pid, nombre, categoria, precio, stock = prod
+    print(f"\n🛍️ {nombre} | Categoría: {categoria} | Precio: ${precio:.2f} | Stock: {stock}")
+
+    confirmacion = input("⚠️ ¿Seguro que querés eliminar este producto? (s/N): ").strip().lower()
+    if confirmacion != "s":
+        print("❎ Operación cancelada.")
+        return
+
+    try:
+        cur.execute("DELETE FROM productos WHERE id = %s;", (pid,))
+        cur.connection.commit()
+        print("✅ Producto eliminado correctamente.")
+    except Exception as e:
+        cur.connection.rollback()
+        print(f"❌ Error al eliminar: {e}")
