@@ -47,15 +47,20 @@ def capturar_foto(nombre_producto):
 
         cv2.imshow("Vista previa - Cámara", frame)
         key = cv2.waitKey(1) & 0xFF
+
         if key == 32:  # ESPACIO
-            nombre_limpio = unicodedata.normalize("NFKD", nombre_producto).encode("ascii", "ignore").decode()
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            archivo_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-            cv2.imwrite(archivo_temp.name, frame)
             cap.release()
             cv2.destroyAllWindows()
-            print(f"✅ Foto capturada.")
-            return archivo_temp.name
+
+            # Convertir a JPEG en memoria
+            ret, buffer = cv2.imencode(".jpg", frame)
+            if not ret:
+                print("❌ Error al codificar la imagen.")
+                return None
+
+            print("✅ Foto capturada y codificada.")
+            return buffer.tobytes()
+
         elif key == 27:  # ESC
             print("🚫 Captura cancelada.")
             break
@@ -84,6 +89,63 @@ def eliminar_categoria(cur, id_categoria):
 def categoria_existe(cur, id_categoria):
     cur.execute("SELECT 1 FROM categorias WHERE id = %s;", (id_categoria,))
     return cur.fetchone() is not None
+
+def seleccionar_categoria(cur):
+    while True:
+        # Mostrar lista actual
+        categorias = listar_categorias(cur)
+        
+        print("\n📂 Categorías disponibles:")
+        for id_, nombre in categorias:
+            print(f"  {id_:>3} - {nombre}")
+        
+        print("\nOpciones:")
+        print("  [ID] para seleccionar una categoría")
+        print("  [A] para agregar una nueva categoría")
+        print("  [B] para eliminar una categoría")
+        eleccion = input("Seleccionar opción: ").strip()
+
+        if eleccion.lower() == "a":
+            nombre_nueva = input("🔤 Ingrese el nombre de la nueva categoría: ").strip().capitalize()
+            if not nombre_nueva:
+                print("⚠️ El nombre no puede estar vacío.")
+                continue
+            try:
+                nueva_id = agregar_categoria(cur,nombre_nueva)
+                print(f"✅ Categoría '{nombre_nueva}' agregada con ID {nueva_id}.")
+                
+            except Exception as e:
+                print(f"❌ Error al agregar categoría: {e}")
+                continue
+
+        elif eleccion.lower() == "b":
+            try:
+                id_eliminar = int(input("🗑 Ingrese el ID de la categoría a eliminar: ").strip())
+                cur.execute("SELECT nombre FROM categorias WHERE id = %s;", (id_eliminar,))
+                fila = cur.fetchone()
+                if fila:
+                    nombre = fila[0]
+                    confirmar = input(f"¿Estás seguro de que querés eliminar la categoría '{nombre}' (ID {id_eliminar})? [s/n]: ").strip().lower()
+                    if confirmar == "s":
+                        nombre_eliminado = eliminar_categoria(cur,id_eliminar)
+                        print(f"✅ Categoría '{nombre_eliminado}' eliminada.")
+                    else:
+                        print("🚫 Eliminación cancelada.")
+                else:
+                    print("⚠️ No existe una categoría con ese ID.")
+            except ValueError:
+                print("⚠️ Debe ingresar un número válido.")
+            except Exception as e:
+                print(f"❌ Error al eliminar: {e}")
+
+        else:
+            try:
+                id_seleccionada = int(eleccion)
+                if categoria_existe(cur, id_seleccionada):
+                    return id_seleccionada
+                print("⚠️ El ID ingresado no corresponde a ninguna categoría.")
+            except ValueError:
+                print("❌ Opción inválida. Ingrese un número, A o B.")
 
 def solicitar_datos_producto(cur):
     def pedir_texto(campo):
@@ -118,63 +180,6 @@ def solicitar_datos_producto(cur):
                 return int(valor)
             except ValueError:
                 print(f"El campo {campo} debe ser un número entero válido o dejarlo vacío.")
-
-    def seleccionar_categoria(cur):
-        while True:
-            # Mostrar lista actual
-            categorias = listar_categorias(cur)
-            
-            print("\n📂 Categorías disponibles:")
-            for id_, nombre in categorias:
-                print(f"  {id_:>3} - {nombre}")
-            
-            print("\nOpciones:")
-            print("  [ID] para seleccionar una categoría")
-            print("  [A] para agregar una nueva categoría")
-            print("  [B] para eliminar una categoría")
-            eleccion = input("Seleccionar opción: ").strip()
-
-            if eleccion.lower() == "a":
-                nombre_nueva = input("🔤 Ingrese el nombre de la nueva categoría: ").strip().capitalize()
-                if not nombre_nueva:
-                    print("⚠️ El nombre no puede estar vacío.")
-                    continue
-                try:
-                    nueva_id = agregar_categoria(cur,nombre_nueva)
-                    print(f"✅ Categoría '{nombre_nueva}' agregada con ID {nueva_id}.")
-                    
-                except Exception as e:
-                    print(f"❌ Error al agregar categoría: {e}")
-                    continue
-
-            elif eleccion.lower() == "b":
-                try:
-                    id_eliminar = int(input("🗑 Ingrese el ID de la categoría a eliminar: ").strip())
-                    cur.execute("SELECT nombre FROM categorias WHERE id = %s;", (id_eliminar,))
-                    fila = cur.fetchone()
-                    if fila:
-                        nombre = fila[0]
-                        confirmar = input(f"¿Estás seguro de que querés eliminar la categoría '{nombre}' (ID {id_eliminar})? [s/n]: ").strip().lower()
-                        if confirmar == "s":
-                            nombre_eliminado = eliminar_categoria(cur,id_eliminar)
-                            print(f"✅ Categoría '{nombre_eliminado}' eliminada.")
-                        else:
-                            print("🚫 Eliminación cancelada.")
-                    else:
-                        print("⚠️ No existe una categoría con ese ID.")
-                except ValueError:
-                    print("⚠️ Debe ingresar un número válido.")
-                except Exception as e:
-                    print(f"❌ Error al eliminar: {e}")
-
-            else:
-                try:
-                    id_seleccionada = int(eleccion)
-                    if categoria_existe(cur, id_seleccionada):
-                        return id_seleccionada
-                    print("⚠️ El ID ingresado no corresponde a ninguna categoría.")
-                except ValueError:
-                    print("❌ Opción inválida. Ingrese un número, A o B.")
 
     def leer_imagen_binaria(path):
         if path and os.path.exists(path):
@@ -235,6 +240,7 @@ def insertar_producto(cur, datos):
             datos["stock_minimo"],
             datos["foto"]
         ))
+        cur.connection.commit()
         print(f"✅ Producto '{datos['nombre']}' insertado con éxito.")
 
     except Exception as e:

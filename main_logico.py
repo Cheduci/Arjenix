@@ -32,7 +32,6 @@ if __name__ == "__main__":
             if opcion == "1":
                 datos = solicitar_datos_producto(cur)
                 insertar_producto(cur, datos)
-                conexion.commit()
 
             elif opcion == "2":
                 consultar_productos(cur)
