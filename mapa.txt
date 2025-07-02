@@ -1,0 +1,19 @@
+app/
+├── main.py                  # Lanza la aplicación
+├── login_window.py          # Pantalla de login
+├── login_window.py         ← vamos a empezar aquí
+├── panels/
+│   ├── panel_dueño.py       # Menú dueño
+│   ├── panel_gerente.py     # Menú gerente
+│   ├── ventana_repositor.py     # Menú repositor
+│   └── widgets/
+│       ├── formulario_producto.py
+│       ├── visor_imagen.py
+│       └── menu_lateral.py
+├── helpers/
+│   ├── validador.py         # Validaciones comunes
+│   └── imagenes.py          # foto BYTEA ⇄ QPixmap
+├── core/
+│   └── auth.py             ← lógica de login, check bcrypt, etc.
+└── ui/
+    └── assets/logo.png     ← lugar para insertar tu logo Arjenix 🎨
