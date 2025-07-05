@@ -8,16 +8,16 @@ CREATE TABLE IF NOT EXISTS categorias (
 CREATE TABLE IF NOT EXISTS productos (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
-    categoria_id INTEGER NOT NULL REFERENCES categorias(id),
+    categoria_id INTEGER REFERENCES categorias(id),
     descripcion TEXT,
     codigo_barra VARCHAR(50) NOT NULL UNIQUE,
     precio_compra NUMERIC(10, 2),
-    precio_venta NUMERIC(10, 2) NOT NULL,
+    precio_venta NUMERIC(10, 2),
     stock_actual INTEGER NOT NULL,
     stock_minimo INTEGER,
     foto BYTEA,
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    activo BOOLEAN DEFAULT FALSE
+    estado VARCHAR(20) DEFAULT 'pendiente'
 );
 
 -- Tabla principal de ventas

@@ -1,6 +1,7 @@
 # db_config.py
 import psycopg
 from psycopg import sql
+from psycopg import OperationalError
 import os
 
 DB_NAME = "arjenix"
@@ -58,14 +59,17 @@ def ejecutar_schema_si_necesario(cur):
         print("✔️ Tablas ya existentes. No se ejecutó schema.sql.")
 
 def conectar_db():
-    crear_base_de_datos()
-    conn = psycopg.connect(
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=DB_PORT
-    )
-    cur = conn.cursor()
-    ejecutar_schema_si_necesario(cur)
-    return conn
+    try:
+        crear_base_de_datos()
+        conn = psycopg.connect(
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            host=DB_HOST,
+            port=DB_PORT
+        )
+        cur = conn.cursor()
+        ejecutar_schema_si_necesario(cur)
+        return conn
+    except OperationalError as e:
+        raise ConnectionError(f"No se pudo conectar a la base de datos:\n{e}")

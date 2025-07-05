@@ -1,6 +1,5 @@
 app/
 ├── main.py                  # Lanza la aplicación
-├── login_window.py          # Pantalla de login
 ├── login_window.py         ← vamos a empezar aquí
 ├── panels/
 │   ├── panel_dueño.py       # Menú dueño
