@@ -189,3 +189,31 @@ def aprobar_producto(codigo: str, nombre: str, descripcion: str, categoria: str,
     except Exception as e:
         print(f"❌ Error al aprobar producto: {e}")
         return False
+
+def obtener_pendientes_de_aprobacion() -> list[dict]:
+    try:
+        conn = db_config.conectar_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT nombre, codigo_barra, stock_actual, fecha_creacion
+            FROM productos
+            WHERE estado = 'pendiente'
+            ORDER BY fecha_creacion ASC
+        """)
+        filas = cur.fetchall()
+        conn.close()
+
+        return [
+            {
+                "nombre": f[0],
+                "codigo_barra": f[1],
+                "stock_actual": f[2],
+                "fecha_creacion": f[3]
+            }
+            for f in filas
+        ]
+
+    except Exception as e:
+        print(f"Error al obtener productos pendientes: {e}")
+        return []

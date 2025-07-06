@@ -4,11 +4,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from bbdd import db_config
 import bcrypt
-import psycopg
+import os
 from datetime import datetime
 from PySide6.QtWidgets import QDateEdit
 from PySide6.QtCore import QDate
-from helpers import validators
+from helpers import validators, exportar
 
 
 class SetupInicialDialog(QDialog):
@@ -37,6 +37,8 @@ class SetupInicialDialog(QDialog):
         self.username = QLineEdit()
         self.password = QLineEdit()
         self.password.setEchoMode(QLineEdit.Password)
+        self.confirmar_password = QLineEdit()
+        self.confirmar_password.setEchoMode(QLineEdit.Password)
 
         form.addRow("🆔 DNI*:", self.dni)
         form.addRow("🧑 Nombre*:", self.nombre)
@@ -45,6 +47,7 @@ class SetupInicialDialog(QDialog):
         form.addRow("📅 Fecha nacimiento:", self.fecha_nac)
         form.addRow("🔐 Usuario*:", self.username)
         form.addRow("🔑 Contraseña*:", self.password)
+        form.addRow("🗝️ Confirmar contraseña*:", self.confirmar_password)
 
         layout.addLayout(form)
 
@@ -57,8 +60,8 @@ class SetupInicialDialog(QDialog):
     def crear_duenio(self):
         datos = {
             "dni": self.dni.text().strip(),
-            "nombre": self.nombre.text().strip(),
-            "apellido": self.apellido.text().strip(),
+            "nombre": self.nombre.text().strip().title(),
+            "apellido": self.apellido.text().strip().title(),
             "email": self.email.text().strip() or None,
             "username": self.username.text().strip(),
             "password": self.password.text().strip()
@@ -74,6 +77,15 @@ class SetupInicialDialog(QDialog):
         if email and not validators.validar_email(email):
             QMessageBox.warning(self, "Correo inválido", "El formato del correo electrónico no es válido.")
             return
+
+        if self.password.text().strip() != self.confirmar_password.text().strip():
+            QMessageBox.warning(self, "Contraseñas no coinciden", "La confirmación no coincide con la contraseña.")
+            return
+        
+        if fecha_obj > datetime.today().date():
+            QMessageBox.warning(self, "Fecha inválida", "La fecha de nacimiento no puede estar en el futuro.")
+            return
+
 
         try:
             conn = db_config.conectar_db()
@@ -107,7 +119,14 @@ class SetupInicialDialog(QDialog):
             conn.commit()
             conn.close()
 
+            ruta_pdf = os.path.join(os.getcwd(), "exportaciones/credenciales/credenciales_iniciales.pdf")
+            exportar.exportar_credenciales_basicas(ruta_pdf, datos["username"], datos["password"], rol="dueño")
+
             QMessageBox.information(self, "Usuario creado", "✅ Dueño creado con éxito. ¡Bienvenido!")
+            QMessageBox.information(self, "PDF generado", f"Se exportó un PDF con las credenciales en:\n{ruta_pdf}")
             self.accept()  # Cerramos el diálogo con éxito
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo crear el usuario.\n{e}")
+        finally:
+            if conn:
+                conn.close()

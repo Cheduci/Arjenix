@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QLabel, QLineEdit,
+    QApplication, QDialog, QLabel, QLineEdit,
     QPushButton, QVBoxLayout, QHBoxLayout, QMessageBox
 )
 from PySide6.QtGui import QPixmap
@@ -9,7 +9,7 @@ from modulos import cambio_password
 import sys
 import os
 
-class LoginWindow(QWidget):
+class LoginWindow(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Arjenix — Ingreso al sistema")
@@ -59,35 +59,36 @@ class LoginWindow(QWidget):
         if resultado == "error_conexion":
             QMessageBox.critical(self, "Base de datos", "No se pudo conectar con la base.")
             return
-        
-        if resultado["debe_cambiar_password"]:
-            dialogo = cambio_password.CambioPasswordDialog(resultado)
-            if dialogo.exec():
-                self.redirigir_segun_rol(resultado)
-            return
-        
-        if not resultado:
+
+        elif resultado is False or resultado is None:
             QMessageBox.warning(self, "Acceso denegado", "Credenciales incorrectas.")
             return
 
-        # Éxito: redirigir según rol
         if resultado["debe_cambiar_password"]:
-            self.ocultar_y_pedir_nueva_password(resultado)
-        else:
-            self.redirigir_segun_rol(resultado)
+            dialogo = cambio_password.CambioPasswordDialog(resultado)
+            if not dialogo.exec():
+                return  # el usuario canceló
+            # Si el cambio fue exitoso, seguimos con normalidad
 
-    def ocultar_y_pedir_nueva_password(self, sesion):
-        # Próximo paso: abrir un QDialog de cambio obligatorio
-        print("🔐 Debería cambiar la contraseña")  # temporal
-        # TODO: Implementar diálogo
-        pass
+        self.sesion = resultado
+        self.accept()  # entrega el control al main
 
-    def redirigir_segun_rol(self, sesion):
-        rol = sesion["rol"]
-        nombre = sesion["nombre"]
-        QMessageBox.information(self, "Bienvenido", f"Hola {nombre}, ingresaste como {rol}.")
-        # TODO: abrir la ventana correspondiente
-        print(f"📥 Redirigir a panel de: {rol}")
+
+    # def ocultar_y_pedir_nueva_password(self, sesion):
+    #     # Próximo paso: abrir un QDialog de cambio obligatorio
+    #     print("🔐 Debería cambiar la contraseña")  # temporal
+    #     # TODO: Implementar diálogo
+    #     pass
+
+    # def redirigir_segun_rol(self, sesion):
+    #     rol = sesion["rol"]
+    #     nombre = sesion["nombre"]
+    #     QMessageBox.information(self, "Bienvenido", f"Hola {nombre}, ingresaste como {rol}.")
+    #     # TODO: abrir la ventana correspondiente
+    #     print(f"📥 Redirigir a panel de: {rol}")
+
+    def obtener_datos_sesion(self) -> dict:
+        return self.sesion if hasattr(self, "sesion") else {}
 
 
 if __name__ == "__main__":
