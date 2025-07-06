@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS personas (
     dni VARCHAR(15) UNIQUE NOT NULL,
     nombre TEXT NOT NULL,
     apellido TEXT NOT NULL,
-    email TEXT UNIQUE,
+    email TEXT,
     fecha_nacimiento DATE,
     activo BOOLEAN DEFAULT FALSE,
     foto BYTEA

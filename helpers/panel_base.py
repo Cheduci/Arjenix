@@ -10,6 +10,8 @@ class BasePanel(QMainWindow, MixinCuentaUsuario):
         self.setMinimumSize(700, 500)
         self.setWindowTitle(self.titulo_ventana())
         self._inicializar_ui()
+        self.showMaximized()
+
 
     def _inicializar_ui(self):
         contenedor = QWidget()

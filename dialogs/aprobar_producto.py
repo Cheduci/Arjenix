@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QLineEdit, QTextEdit, QDoubleSpinBox,
-    QSpinBox, QPushButton, QFileDialog, QMessageBox, QComboBox, QHBoxLayout
+    QSpinBox, QPushButton, QFileDialog, QMessageBox, QComboBox, QHBoxLayout, 
+    QSizePolicy, QInputDialog
 )
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
@@ -33,8 +34,15 @@ class AprobarProductoDialog(QDialog):
 
         # 🏷️ Categoría
         layout.addWidget(QLabel("Categoría:"))
+        hbox_categoria = QHBoxLayout()
         self.categoria = QComboBox()
-        layout.addWidget(self.categoria)
+        btn_nueva_categoria = QPushButton("➕ Nueva")
+        btn_nueva_categoria.clicked.connect(self.crear_categoria)
+        hbox_categoria.addWidget(self.categoria)
+        hbox_categoria.addWidget(btn_nueva_categoria)
+        layout.addLayout(hbox_categoria)
+        self.cargar_categorias()
+
 
         # 💰 Precio de compra
         layout.addWidget(QLabel("Precio de compra:"))
@@ -60,10 +68,20 @@ class AprobarProductoDialog(QDialog):
 
         # 🖼️ Imagen del producto
         layout.addWidget(QLabel("Imagen del producto:"))
+
+        # Previsualización centrada
         self.label_imagen = QLabel("📷 Sin imagen")
         self.label_imagen.setAlignment(Qt.AlignCenter)
-        self.label_imagen.setFixedHeight(200)
-        layout.addWidget(self.label_imagen)
+        self.label_imagen.setStyleSheet("""
+            border: 1px solid #ccc;
+            background-color: #fafafa;
+            color: #888;
+            font-style: italic;
+        """)
+
+        # 🪄 Estilo fluido y expandible
+        self.label_imagen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(self.label_imagen, stretch=1)
 
         # 🎛️ Botones: Examinar y Capturar
         hbox_foto = QHBoxLayout()
@@ -83,6 +101,22 @@ class AprobarProductoDialog(QDialog):
 
         self.setLayout(layout)
 
+    def crear_categoria(self):
+        nombre, ok = QInputDialog.getText(self, "Nueva categoría", "Nombre de la categoría:")
+        if ok and nombre.strip():
+            try:
+                productos.crear_categoria(nombre.strip())
+                self.cargar_categorias()  # recarga categorías en el combo
+                self.categoria.setCurrentText(nombre.strip())
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"No se pudo crear la categoría:\n{e}")
+
+    def cargar_categorias(self):
+        self.categoria.clear()
+        categorias = productos.listar_categorias()
+        self.categoria.addItems(categorias)
+
+
     def cargar_datos(self):
         producto = productos.obtener_producto_por_codigo(self.codigo)
         if not producto:
@@ -91,15 +125,7 @@ class AprobarProductoDialog(QDialog):
             return
 
         self.nombre.setText(producto["nombre"])
-        self.descripcion.setText(producto["descripcion"] or "")
-        self.precio_compra.setValue(producto.get("precio_compra", 0))
-        self.precio_venta.setValue(producto.get("precio_venta", 0))
-        self.stock_minimo.setValue(producto.get("stock_minimo", 0))
 
-        # Imagen previa si hay
-        foto = producto.get("foto")
-        if foto and os.path.exists(foto):
-            self.label_imagen.setPixmap(QPixmap(foto).scaled(200, 200, Qt.KeepAspectRatio))
 
     def cargar_imagen(self):
         ruta, _ = QFileDialog.getOpenFileName(self, "Seleccionar imagen", "", "Imágenes (*.png *.jpg *.jpeg)")
@@ -108,14 +134,17 @@ class AprobarProductoDialog(QDialog):
             self.label_imagen.setPixmap(QPixmap(ruta).scaled(200, 200, Qt.KeepAspectRatio))
 
     def aprobar_producto(self):
-        nombre = self.nombre.text().strip()
-        descripcion = self.descripcion.toPlainText().strip()
+        nombre = self.nombre.text().strip().capitalize()
+        descripcion = self.descripcion.toPlainText().strip().capitalize()
         categoria = self.categoria.currentText()
         precio_venta = self.precio_venta.value()
 
         if not all([nombre, descripcion, categoria]) or precio_venta <= 0:
             QMessageBox.warning(self, "Faltan datos", "Completá todos los campos obligatorios.")
             return
+        
+        # 📸 Imagen como binario
+        foto = getattr(self, "foto_bytes", None)
 
         aprobado = productos.aprobar_producto(
             codigo=self.codigo,
@@ -125,7 +154,7 @@ class AprobarProductoDialog(QDialog):
             precio_venta=precio_venta,
             precio_compra=self.precio_compra.value(),
             stock_minimo=self.stock_minimo.value(),
-            ruta_imagen=getattr(self, "imagen_seleccionada", None)
+            foto_bytes=foto
         )
 
         if aprobado:
@@ -139,6 +168,7 @@ class AprobarProductoDialog(QDialog):
         if ruta:
             with open(ruta, "rb") as f:
                 self.foto_bytes = f.read()
+
             self.label_imagen.setPixmap(QPixmap(ruta).scaled(200, 200, Qt.KeepAspectRatio))
 
     def capturar_desde_camara(self):

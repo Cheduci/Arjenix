@@ -1,9 +1,13 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QGroupBox, QPushButton, QHBoxLayout, QMessageBox, QLabel, QMainWindow, QDialog, QLineEdit
+    QWidget, QVBoxLayout, QGroupBox, QPushButton, QHBoxLayout, QMessageBox, QLabel, QMainWindow, QDialog, QLineEdit,
+    QGridLayout
 )
 from dialogs.alta_producto import AltaProductoDialog 
 from dialogs.crear_usuario import CrearUsuarioDialog
 from dialogs.pendientes_producto import PendientesDeAprobacion
+from dialogs.estadisticas_stock import EstadisticasStockDialog
+from dialogs.gestor_usuarios import GestorUsuariosDialog
+from dialogs.gestionar_categorias import GestionarCategoriasDialog
 from helpers.mixin_cuenta import *
 from helpers.panel_base import *
 
@@ -66,10 +70,12 @@ class PanelGerente(PanelRepositor):
         layout.addWidget(box)
 
     def gestionar_pendientes(self):
-        QMessageBox.information(self, "Productos pendientes", "👉 Aquí se mostrarán productos para aprobar.")
+        visor = PendientesDeAprobacion(self.sesion)
+        visor.exec()
 
     def ver_estadisticas(self):
-        QMessageBox.information(self, "Estadísticas", "📊 Próximamente: estadísticas de stock y rotación.")
+        dialogo = EstadisticasStockDialog(self.sesion)
+        dialogo.exec()
 
 
 class PanelDueño(PanelGerente):
@@ -79,6 +85,21 @@ class PanelDueño(PanelGerente):
     def contenido_principal(self, layout):
         super().contenido_principal(layout)
 
+        # 👥 Gestión de usuarios
+        box_usuarios = QGroupBox("👥 Gestión de usuarios")
+        inner = QVBoxLayout()
+
+        btn_crear = QPushButton("👤 Crear nuevo usuario")
+        btn_crear.clicked.connect(self.abrir_crear_usuario)
+        inner.addWidget(btn_crear)
+
+        btn_gestionar = QPushButton("🛠️ Editar usuarios existentes")
+        btn_gestionar.clicked.connect(self.abrir_gestor_usuarios)
+        inner.addWidget(btn_gestionar)
+
+        box_usuarios.setLayout(inner)
+        layout.addWidget(box_usuarios)
+
         # 🔐 Sección adicional exclusiva del dueño
         box_admin = QGroupBox("⚙️ Administración avanzada")
         inner = QVBoxLayout()
@@ -87,10 +108,13 @@ class PanelDueño(PanelGerente):
         btn_auditoria.clicked.connect(self.ver_auditoria)
         inner.addWidget(btn_auditoria)
 
+        btn_categorias = QPushButton("🗂️ Gestionar categorías")
+        btn_categorias.clicked.connect(self.abrir_gestion_categorias)
+        inner.addWidget(btn_categorias)
+
+
         box_admin.setLayout(inner)
         layout.addWidget(box_admin)
-
-        # 🧩 Próximamente: estadísticas, parámetros, etc.
 
     def abrir_visor_pendientes(self):
         visor = PendientesDeAprobacion(self.sesion)
@@ -99,6 +123,15 @@ class PanelDueño(PanelGerente):
     def abrir_crear_usuario(self):
         dialogo = CrearUsuarioDialog(self.sesion)
         dialogo.exec()
+
+    def abrir_gestor_usuarios(self):
+        GestorUsuariosDialog(self.sesion).exec()
+
+    def abrir_gestion_categorias(self):
+        dialogo = GestionarCategoriasDialog()
+        dialogo.exec()
+
+        
 
     # 📊 Menú “Administración” en MenuDueño busca estos métodos:
     def gestionar_usuarios(self):

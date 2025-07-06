@@ -35,6 +35,9 @@ class CrearUsuarioDialog(QDialog):
 
     def cargar_roles(self):
         self.combo_rol.clear()
+        self.combo_rol.addItem("--seleccione rol--", userData=None)
+        # Deshabilitar la opción por defecto
+        self.combo_rol.model().item(0).setEnabled(False)
         for id_, nombre in obtener_roles():
             self.combo_rol.addItem(nombre, userData=id_)
 
@@ -80,8 +83,8 @@ class CrearUsuarioDialog(QDialog):
         password = self.password.text()
         rol_id = self.combo_rol.currentData()
 
-        if not all([persona, username, password, rol_id]):
-            QMessageBox.warning(self, "Faltan datos", "Completá todos los campos.")
+        if not all([persona, username, password]) or rol_id is None:
+            QMessageBox.warning(self, "Faltan datos", "Completá todos los campos y seleccioná un rol.")
             return
 
         if username_existe(username):
@@ -142,8 +145,8 @@ class CrearUsuarioDialog(QDialog):
         password = self.password.text()
         rol_id = self.combo_rol.currentData()
 
-        if not all([self.persona_id, username, password, rol_id]):
-            QMessageBox.warning(self, "Faltan datos", "Completá todos los campos.")
+        if not all([self.persona_id, username, password]) or rol_id is None:
+            QMessageBox.warning(self, "Faltan datos", "Completá todos los campos y seleccioná un rol.")
             return
 
         if username_existe(username):

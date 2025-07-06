@@ -70,7 +70,19 @@ def capturar_foto() -> bytes | None:
         if not ret:
             print("❌ Error al capturar la imagen.")
             break
-
+        
+        # Instrucciones visibles sobre la imagen
+        cv2.putText(
+            frame,
+            "ESPACIO = Capturar  |  ESC = Cancelar",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 255),
+            2,
+            cv2.LINE_AA
+        )
+        
         cv2.imshow("Vista previa - Cámara", frame)
         key = cv2.waitKey(1) & 0xFF
 

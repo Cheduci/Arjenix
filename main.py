@@ -7,9 +7,11 @@ def main():
     cur.execute("SELECT COUNT(*) FROM usuarios WHERE activo = TRUE;")
     tiene_usuarios = cur.fetchone()[0] > 0
 
-    router = MainRouter()
     if not tiene_usuarios:
-        router.iniciar_con_setup()
+        MainRouter(arranca_con_setup=True)
+    else:
+        MainRouter()
+
 
 if __name__ == "__main__":
     main()

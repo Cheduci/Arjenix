@@ -1,17 +1,16 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QMessageBox
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QTableWidget, QTableWidgetItem, QPushButton, QMessageBox
 )
-from PySide6.QtCore import Qt
 from core.productos import *
 from dialogs.aprobar_producto import AprobarProductoDialog
 
-class PendientesDeAprobacion(QWidget):
+class PendientesDeAprobacion(QDialog):
     def __init__(self, sesion: dict):
         super().__init__()
         self.sesion = sesion
         self.setWindowTitle("🟡 Productos pendientes de aprobación")
-        self.setMinimumSize(700, 400)
+        self.setMinimumSize(720, 440)
         self.setup_ui()
         self.cargar_productos()
 
@@ -30,6 +29,7 @@ class PendientesDeAprobacion(QWidget):
         buscador = QHBoxLayout()
         buscador.addWidget(QLabel("Buscar:"))
         self.filtro = QLineEdit()
+        self.filtro.setPlaceholderText("Nombre del producto")
         self.filtro.textChanged.connect(self.aplicar_filtro)
         buscador.addWidget(self.filtro)
         layout.addLayout(buscador)
@@ -40,7 +40,19 @@ class PendientesDeAprobacion(QWidget):
         self.tabla.setHorizontalHeaderLabels(["Nombre", "Código", "Stock", "Fecha"])
         self.tabla.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tabla.cellDoubleClicked.connect(self.aprobar_producto)
+        self.tabla.itemSelectionChanged.connect(self.actualizar_boton_aprobar)
         layout.addWidget(self.tabla)
+
+        # ✅ Botón aprobar seleccionado
+        self.btn_aprobar = QPushButton("✅ Aprobar seleccionado")
+        self.btn_aprobar.clicked.connect(self.aprobar_seleccionado)
+        self.btn_aprobar.setEnabled(False)
+        layout.addWidget(self.btn_aprobar)
+
+        # 🧩 Botón cerrar
+        btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.clicked.connect(self.accept)
+        layout.addWidget(btn_cerrar)
 
         self.setLayout(layout)
 
@@ -59,7 +71,11 @@ class PendientesDeAprobacion(QWidget):
         self.tabla.resizeColumnsToContents()
 
     def aplicar_filtro(self, texto: str):
-        filtrados = [p for p in self.todos if texto.lower() in p["nombre"].lower()]
+        texto = texto.lower()
+        filtrados = [
+            p for p in self.todos
+            if texto in p["nombre"].lower() or texto in p["codigo_barra"]
+        ]
         self.mostrar_productos(filtrados)
 
     def aprobar_producto(self, fila, _col):
@@ -67,3 +83,15 @@ class PendientesDeAprobacion(QWidget):
         dialogo = AprobarProductoDialog(self.sesion, codigo)
         if dialogo.exec():
             self.cargar_productos()
+    
+    def aprobar_seleccionado(self):
+        fila = self.tabla.currentRow()
+        if fila == -1:
+            QMessageBox.information(self, "Sin selección", "Seleccioná un producto para aprobar.")
+            return
+
+        self.aprobar_producto(fila, 0)
+    
+    def actualizar_boton_aprobar(self):
+        tiene_seleccion = self.tabla.currentRow() != -1
+        self.btn_aprobar.setEnabled(tiene_seleccion)
