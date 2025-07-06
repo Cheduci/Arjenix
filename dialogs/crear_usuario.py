@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 from core.personas import *
 from core.usuarios import *
 from core.roles import obtener_roles
-from modulos.crear_persona import CrearPersonaDialog
+from dialogs.crear_persona import CrearPersonaDialog
 import bcrypt
 from helpers.exportar import exportar_credenciales_basicas
 import os

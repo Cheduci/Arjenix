@@ -33,7 +33,7 @@ class AltaProductoDialog(QDialog):
         self.setLayout(layout)
 
     def crear_producto(self):
-        nombre = self.campo_nombre.text().strip()
+        nombre = self.campo_nombre.text().strip().capitalize()
         stock = self.campo_stock.value()
 
         if not nombre:
@@ -52,7 +52,7 @@ class AltaProductoDialog(QDialog):
             codigo = generador.generar_codigo_unico()
 
             cur.execute("""
-                INSERT INTO productos (nombre, stock, codigo_barra)
+                INSERT INTO productos (nombre, stock_actual, codigo_barra)
                 VALUES (%s, %s, %s)
             """, (nombre, stock, codigo))
 

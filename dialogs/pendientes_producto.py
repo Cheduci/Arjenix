@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from core.productos import *
-from modulos.aprobar_producto import AprobarProductoDialog
+from dialogs.aprobar_producto import AprobarProductoDialog
 
 class PendientesDeAprobacion(QWidget):
     def __init__(self, sesion: dict):

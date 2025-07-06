@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
 from core import auth
-from modulos import cambio_password
+from dialogs import cambio_password
 import sys
 import os
 

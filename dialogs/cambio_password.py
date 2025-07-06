@@ -22,7 +22,7 @@ class CambioPasswordDialog(QDialog):
         self.nueva_clave = QLineEdit()
         self.nueva_clave.setPlaceholderText("Nueva contraseña")
         self.nueva_clave.setEchoMode(QLineEdit.Password)
-        self.nueva.textChanged.connect(self.evaluar_fuerza)
+        self.nueva_clave.textChanged.connect(self.evaluar_fuerza)
         layout.addWidget(self.nueva_clave)
 
         self.fuerza = QProgressBar()

@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from core.productos import buscar_productos  # a definir
-from ficha_producto import FichaProductoDialog
+from dialogs.ficha_producto import FichaProductoDialog
 
 class VisorProductos(QWidget):
     def __init__(self, sesion: dict):
