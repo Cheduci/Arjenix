@@ -1,12 +1,13 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit,
-    QMessageBox, QSpinBox, QDoubleSpinBox
+    QMessageBox, QSpinBox, QDoubleSpinBox, QInputDialog, QGroupBox
 )
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
 from core import productos
 from bbdd import db_config
 import os
+from helpers.exportar import exportar_codigo_pdf
 
 class FichaProductoDialog(QDialog):
     def __init__(self, sesion: dict, codigo: str):
@@ -15,90 +16,160 @@ class FichaProductoDialog(QDialog):
         self.codigo = codigo
         self.setWindowTitle(f"📄 Ficha del producto — {codigo}")
         self.setMinimumSize(600, 400)
+        self.mensaje_mostrado = False
         self.setup_ui()
         self.cargar_datos()
-        self.mensaje_mostrado = False
 
     def setup_ui(self):
         self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
 
         # 🖼️ Imagen
         self.imagen = QLabel()
         self.imagen.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.imagen)
 
-        # 📝 Nombre
+        # 📦 Grupo: Información general
+        info_group = QGroupBox("📦 Información del producto")
+        info_layout = QVBoxLayout()
+
         self.nombre = QLabel()
-        self.layout.addWidget(self.nombre)
+        font = self.nombre.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        self.nombre.setFont(font)
+        self.nombre.setAlignment(Qt.AlignCenter)
+        info_layout.addWidget(self.nombre)
 
-        # 📦 Código y categoría
         self.codigo_label = QLabel()
-        self.layout.addWidget(self.codigo_label)
+        info_layout.addWidget(self.codigo_label)
 
-        # 🧾 Descripción
         self.descripcion = QTextEdit()
         self.descripcion.setReadOnly(True)
-        self.layout.addWidget(self.descripcion)
+        self.descripcion.setPlaceholderText("Sin descripción disponible")
+        info_layout.addWidget(self.descripcion)
 
-        # 📊 Stock
+        info_group.setLayout(info_layout)
+        self.layout.addWidget(info_group)
+
+        # 📊 Grupo: Stock
+        stock_group = QGroupBox("📈 Inventario")
         stock_layout = QHBoxLayout()
-        stock_layout.addWidget(QLabel("Stock:"))
+
+        stock_layout.addWidget(QLabel("Stock actual:"))
         self.campo_stock = QSpinBox()
         self.campo_stock.setRange(0, 100000)
-        self.campo_stock.setEnabled(False)  # Se activará si el rol lo permite
+        self.campo_stock.setEnabled(False)
         stock_layout.addWidget(self.campo_stock)
-        self.layout.addLayout(stock_layout)
 
-        # 💰 Precios
+        stock_group.setLayout(stock_layout)
+        self.layout.addWidget(stock_group)
+
+        # 💰 Grupo: Precios
+        precios_group = QGroupBox("💰 Precios")
         precio_layout = QHBoxLayout()
+
         self.precio_compra = QDoubleSpinBox()
         self.precio_compra.setPrefix("$")
         self.precio_compra.setMaximum(999999)
         self.precio_compra.setDecimals(2)
         self.precio_compra.setEnabled(False)
+        self.precio_compra.setToolTip("Precio de compra del proveedor")
 
         self.precio_venta = QDoubleSpinBox()
         self.precio_venta.setPrefix("$")
         self.precio_venta.setMaximum(999999)
         self.precio_venta.setDecimals(2)
         self.precio_venta.setEnabled(False)
+        self.precio_venta.setToolTip("Precio de venta al cliente")
 
-        precio_layout.addWidget(QLabel("Precio compra:"))
+        precio_layout.addWidget(QLabel("Compra:"))
         precio_layout.addWidget(self.precio_compra)
-        precio_layout.addWidget(QLabel("Precio venta:"))
+        precio_layout.addSpacing(30)
+        precio_layout.addWidget(QLabel("Venta:"))
         precio_layout.addWidget(self.precio_venta)
-        self.layout.addLayout(precio_layout)
 
-        # 🔘 Botones
-        self.btn_guardar_stock = QPushButton("Actualizar stock")
-        self.btn_guardar_precios = QPushButton("Actualizar precios")
-        self.btn_inactivar = QPushButton("Inactivar producto")
-        self.btn_reactivar = QPushButton("Reactivar")
-        self.btn_eliminar = QPushButton("Eliminar permanentemente")
+        precios_group.setLayout(precio_layout)
+        self.layout.addWidget(precios_group)
 
-        # Vínculos a eventos (a definir)
+        # 🛠️ Grupo: Acciones disponibles
+        acciones_group = QGroupBox("⚙️ Acciones")
+        acciones_layout = QHBoxLayout()
+
+        self.btn_guardar_stock = QPushButton("💾 Guardar stock")
+        self.btn_guardar_precios = QPushButton("💾 Guardar precios")
+        self.btn_estado = QPushButton()
+        self.btn_eliminar = QPushButton("🗑️ Eliminar permanentemente")
+
         self.btn_guardar_stock.clicked.connect(self.actualizar_stock)
         self.btn_guardar_precios.clicked.connect(self.actualizar_precios)
-        self.btn_inactivar.clicked.connect(self.inactivar_producto)
-        self.btn_reactivar.clicked.connect(self.reactivar_producto)
+        self.btn_estado.clicked.connect(self.toggle_estado_producto)
         self.btn_eliminar.clicked.connect(self.eliminar_producto)
 
-        # Se agregan dinámicamente según el rol
+        acciones_layout.addWidget(self.btn_guardar_stock)
+        acciones_layout.addWidget(self.btn_guardar_precios)
+        self.layout.addWidget(self.btn_estado)
+        acciones_layout.addWidget(self.btn_eliminar)
+
+        acciones_group.setLayout(acciones_layout)
+        self.layout.addWidget(acciones_group)
+
+        # 📤 Exportar
+        self.btn_exportar = QPushButton("📤 Exportar etiqueta PDF")
+        self.btn_exportar.clicked.connect(self.exportar_etiqueta_pdf)
+        self.layout.addWidget(self.btn_exportar)
+
         self.layout.addStretch()
-        self.setLayout(self.layout)
+
 
     def cargar_datos(self):
-        producto = productos.obtener_producto_por_codigo(self.codigo)
-        if not producto:
+        self.producto = productos.obtener_producto_por_codigo(self.codigo)
+        if not self.producto:
             QMessageBox.critical(self, "Error", "No se pudo cargar el producto.")
             self.reject()
             return
 
+        estado = self.producto["estado"]
+        nombre = self.producto["nombre"]
+
+        if estado == "activo":
+            self.nombre.setText(f"<h2>{nombre}</h2>")
+            self.btn_estado.setText("⛔ Inactivar producto")
+            self.btn_estado.setEnabled(True)
+
+        elif estado == "inactivo":
+            self.nombre.setText(f"<h2 style='color:gray'>{nombre} (INACTIVO)</h2>")
+            self.btn_estado.setText("✅ Activar producto")
+            self.btn_estado.setEnabled(True)
+
+            if not self.mensaje_mostrado:
+                QMessageBox.information(
+                    self,
+                    "Producto inactivo",
+                    "⚠️ Este producto está actualmente inactivo.\nNo puede ser vendido ni utilizado en operaciones.",
+                    QMessageBox.Ok
+                )
+                self.mensaje_mostrado = True
+
+        elif estado == "pendiente":
+            self.nombre.setText(f"<h2 style='color:orange'>{nombre} (PENDIENTE)</h2>")
+            self.btn_estado.setText("⏳ Estado pendiente")
+            self.btn_estado.setEnabled(False)
+
+            if not self.mensaje_mostrado:
+                QMessageBox.information(
+                    self,
+                    "Producto pendiente",
+                    "ℹ️ Este producto está en estado pendiente.\nRevisá sus datos antes de usarlo.",
+                    QMessageBox.Ok
+                )
+                self.mensaje_mostrado = True
+            
         # 📄 Info básica
-        self.nombre.setText(f"<h2>{producto['nombre']}</h2>")
-        if not producto["activo"]:
+        self.nombre.setText(f"<h2>{self.producto['nombre']}</h2>")
+        if self.producto["estado"] != "activo":
             self.nombre.setText(
-                f"<h2 style='color:gray'>{producto['nombre']} (INACTIVO)</h2>"
+                f"<h2 style='color:gray'>{self.producto['nombre']} (INACTIVO)</h2>"
             )
 
             if not self.mensaje_mostrado:
@@ -110,24 +181,27 @@ class FichaProductoDialog(QDialog):
                 )
                 self.mensaje_mostrado = True
 
-        self.codigo_label.setText(f"Código: {producto['codigo']} — Categoría: {producto['categoria']}")
-        self.descripcion.setText(producto["descripcion"])
-        self.campo_stock.setValue(producto["stock"])
-        self.precio_compra.setValue(producto["precio_compra"])
-        self.precio_venta.setValue(producto["precio_venta"])
+        self.codigo_label.setText(f"Código: {self.producto['codigo_barra']} — Categoría: {self.producto['categoria']}")
+        self.descripcion.setText(self.producto["descripcion"])
+        self.campo_stock.setValue(self.producto["stock"])
+        self.precio_compra.setValue(self.producto["precio_compra"])
+        self.precio_venta.setValue(self.producto["precio_venta"])
+        
 
         # 🖼️ Imagen si existe
-        ruta_foto = producto.get("foto")
-        if ruta_foto and os.path.exists(ruta_foto):
-            pixmap = QPixmap(ruta_foto).scaled(200, 200, Qt.KeepAspectRatio)
-            self.imagen.setPixmap(pixmap)
+        foto_bytes = self.producto.get("foto")
+        if foto_bytes:
+            pixmap = QPixmap()
+            pixmap.loadFromData(foto_bytes)
+            self.imagen.setPixmap(pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
             self.imagen.setText("📷 Sin imagen")
+
 
         # 🔒 Permisos según rol
         rol = self.sesion["rol"]
 
-        if rol in ["dueño", "gerente", "depositor"]:
+        if rol in ["dueño", "gerente", "repositor"]:
             self.campo_stock.setEnabled(True)
             self.layout.addWidget(self.btn_guardar_stock)
 
@@ -136,11 +210,11 @@ class FichaProductoDialog(QDialog):
             self.precio_venta.setEnabled(True)
             self.layout.addWidget(self.btn_guardar_precios)
 
-        if rol in ["dueño", "gerente"] and producto["activo"]:
-            self.layout.addWidget(self.btn_inactivar)
-
-        if rol in ["dueño", "gerente"] and not producto["activo"]:
-            self.layout.addWidget(self.btn_reactivar)
+        if rol in ["dueño", "gerente"]:
+            self.precio_compra.setEnabled(True)
+            self.precio_venta.setEnabled(True)
+            self.layout.addWidget(self.btn_guardar_precios)
+            self.layout.addWidget(self.btn_estado)
 
         if rol == "dueño":
             self.layout.addWidget(self.btn_eliminar)
@@ -151,19 +225,15 @@ class FichaProductoDialog(QDialog):
 
         confirm = QMessageBox.question(
             self, "Confirmar",
-            f"¿Actualizar el stock del producto a {nuevo_stock} unidades?",
+            f"¿Actualizar el stock a {nuevo_stock} unidades?",
             QMessageBox.Yes | QMessageBox.No
         )
-        if confirm != QMessageBox.Yes:
-            return
-
-        ok = productos.modificar_stock(self.codigo, nuevo_stock)
-
-        if ok:
-            QMessageBox.information(self, "Éxito", "✅ Stock actualizado correctamente.")
-            self.accept()
-        else:
-            QMessageBox.critical(self, "Error", "No se pudo actualizar el stock.")
+        if confirm == QMessageBox.Yes:
+            if productos.modificar_stock(self.codigo, nuevo_stock):
+                QMessageBox.information(self, "Éxito", "✅ Stock actualizado correctamente.")
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "No se pudo actualizar el stock.")
 
     def actualizar_precios(self): 
         compra = self.precio_compra.value()
@@ -178,62 +248,62 @@ class FichaProductoDialog(QDialog):
             f"¿Actualizar los precios?\nCompra: ${compra:.2f}\nVenta: ${venta:.2f}",
             QMessageBox.Yes | QMessageBox.No
         )
-        if confirm != QMessageBox.Yes:
-            return
-
-        ok = productos.actualizar_precios(self.codigo, compra, venta)
-
-        if ok:
-            QMessageBox.information(self, "Éxito", "✅ Precios actualizados correctamente.")
-            self.accept()
-        else:
-            QMessageBox.critical(self, "Error", "No se pudieron actualizar los precios.")
-        
-    def inactivar_producto(self): 
-        respuesta = QMessageBox.question(
+        confirm = QMessageBox.question(
             self, "Confirmar",
-            "¿Estás seguro de que querés inactivar este producto?\nPodrás reactivarlo luego.",
+            f"¿Actualizar precios?\nCompra: ${compra:.2f}\nVenta: ${venta:.2f}",
             QMessageBox.Yes | QMessageBox.No
         )
-        if respuesta != QMessageBox.Yes:
-            return
+        if confirm == QMessageBox.Yes:
+            if productos.actualizar_precios(self.codigo, compra, venta):
+                QMessageBox.information(self, "Éxito", "✅ Precios actualizados.")
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "No se pudieron actualizar los precios.")
+        
+    def toggle_estado_producto(self):
+        estado = self.producto["estado"]
 
-        ok = productos.inactivar_producto(self.codigo)
-        if ok:
-            QMessageBox.information(self, "Hecho", "🟡 Producto inactivado.")
-            self.accept()
-        else:
-            QMessageBox.critical(self, "Error", "No se pudo inactivar el producto.")
+        if estado == "activo":
+            confirmado = QMessageBox.question(
+                self, "Inactivar", "¿Querés inactivar este producto?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if confirmado == QMessageBox.Yes:
+                productos.inactivar_producto(self.codigo)
+
+        elif estado == "inactivo":
+            confirmado = QMessageBox.question(
+                self, "Reactivar", "¿Querés reactivar este producto?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if confirmado == QMessageBox.Yes:
+                productos.reactivar_producto(self.codigo)
+
+        # 🔁 Recargar datos actualizados
+        self.cargar_datos()
+
     
-    def reactivar_producto(self):
-        respuesta = QMessageBox.question(
-            self, "Confirmar",
-            "¿Querés reactivar este producto y volverlo disponible?",
+    def eliminar_producto(self): 
+        confirm = QMessageBox.critical(self, "Eliminar permanentemente",
+            "⚠️ Esta acción es irreversible.\n¿Deseás continuar?",
             QMessageBox.Yes | QMessageBox.No
         )
-        if respuesta != QMessageBox.Yes:
+        if confirm == QMessageBox.Yes:
+            if productos.eliminar_producto(self.codigo):
+                QMessageBox.information(self, "Eliminado", "🗑️ Producto eliminado del sistema.")
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "No se pudo eliminar el producto.")
+    
+    def exportar_etiqueta_pdf(self):
+
+
+        cantidad, ok = QInputDialog.getInt(self, "Cantidad de etiquetas", "¿Cuántas etiquetas querés imprimir?", 1, 1, 999)
+        if not ok:
             return
 
-        ok = productos.reactivar_producto(self.codigo)
-        if ok:
-            QMessageBox.information(self, "Reactivado", "🟢 Producto reactivado.")
-            self.accept()
-        else:
-            QMessageBox.critical(self, "Error", "No se pudo reactivar el producto.")
-    
-    def eliminar_producto(codigo: str) -> bool: 
-        try:
-            conn = db_config.conectar_db()
-            cur = conn.cursor()
+        nombre = self.producto["nombre"]
+        codigo = self.producto["codigo_barra"]
+        precio = self.producto["precio_venta"]
 
-            # ⚠️ Ideal: chequear dependencias antes
-            cur.execute("DELETE FROM productos WHERE codigo = %s", (codigo,))
-
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            print(f"Error al eliminar producto: {e}")
-            return False
-        
-    
+        exportar_codigo_pdf(nombre, codigo, precio, cantidad)

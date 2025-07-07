@@ -33,6 +33,18 @@ def escanear_codigo_opencv():
             cv2.putText(frame, codigo, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 255, 50), 2)
             codigo_detectado = codigo
 
+        # Instrucciones visibles sobre la imagen
+        cv2.putText(
+            frame,
+            "ESC = Cancelar",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 255),
+            2,
+            cv2.LINE_AA
+        )
+
         cv2.imshow("Escaneo de código", frame)
         key = cv2.waitKey(1) & 0xFF
 
@@ -105,4 +117,18 @@ def capturar_foto() -> bytes | None:
 
     cap.release()
     cv2.destroyAllWindows()
+    return None
+
+def leer_codigo_desde_frame(frame) -> str | None:
+    decoded_objs = decode(frame)
+    for obj in decoded_objs:
+        puntos = obj.polygon
+        hull = cv2.convexHull(np.array(puntos, dtype=np.float32)) if len(puntos) > 4 else puntos
+        hull = list(map(tuple, np.squeeze(hull))) if isinstance(hull, np.ndarray) else hull
+
+        cv2.polylines(frame, [np.array(hull, dtype=np.int32)], True, (0, 255, 0), 2)
+        x, y = int(hull[0][0]), int(hull[0][1]) - 10
+        codigo = obj.data.decode("utf-8")
+        cv2.putText(frame, codigo, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 255, 50), 2)
+        return codigo
     return None

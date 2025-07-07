@@ -8,8 +8,59 @@ from dialogs.pendientes_producto import PendientesDeAprobacion
 from dialogs.estadisticas_stock import EstadisticasStockDialog
 from dialogs.gestor_usuarios import GestorUsuariosDialog
 from dialogs.gestionar_categorias import GestionarCategoriasDialog
+from dialogs.buscar_producto import BuscarProductoDialog
+from dialogs.ver_productos import VerProductosDialog
+from dialogs.ranking_ventas import RankingVentasDialog
+from dialogs.iniciar_venta import IniciarVentaDialog
 from helpers.mixin_cuenta import *
 from helpers.panel_base import *
+
+class PanelVendedor(BasePanel):
+    def titulo_ventana(self):
+        return "🛒 Panel de Vendedor"
+
+    def contenido_principal(self, layout):
+        from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QPushButton
+
+        # 📦 Gestión de productos
+        box_productos = QGroupBox("📦 Productos")
+        inner = QVBoxLayout()
+
+        btn_ver_todos = QPushButton("📋 Ver todos los productos")
+        btn_ver_todos.clicked.connect(self.ver_todos_los_productos)
+        inner.addWidget(btn_ver_todos)
+
+        btn_buscar = QPushButton("🔎 Buscar producto")
+        btn_buscar.clicked.connect(self.buscar_producto)
+        inner.addWidget(btn_buscar)
+
+        box_productos.setLayout(inner)
+        layout.addWidget(box_productos)
+
+        # 🛍️ Ventas 
+        box_ventas = QGroupBox("🛍️ Ventas")
+        inner = QVBoxLayout()
+
+        btn_nueva_venta = QPushButton("🛒 Iniciar venta")
+        btn_nueva_venta.clicked.connect(self.iniciar_venta)
+        inner.addWidget(btn_nueva_venta)
+
+        box_ventas.setLayout(inner)
+        layout.addWidget(box_ventas)
+    
+    def buscar_producto(self):
+        dialogo = BuscarProductoDialog(sesion=self.sesion, modo="ver")
+        dialogo.exec()
+
+    def ver_todos_los_productos(self):
+        dialogo = VerProductosDialog(self.sesion)
+        dialogo.exec()
+    
+    def iniciar_venta(self):
+        dialogo = IniciarVentaDialog(self.sesion)
+        dialogo.exec()
+
+
 
 class PanelRepositor(BasePanel):
     def titulo_ventana(self):
@@ -48,12 +99,14 @@ class PanelRepositor(BasePanel):
         QMessageBox.information(self, "Historial", "👉 Acá se mostrará el historial de reposiciones realizadas.")
         
         
-class PanelGerente(PanelRepositor):
+class PanelGerente(PanelRepositor, PanelVendedor):
     def titulo_ventana(self):
         return "🧑‍💼 Panel de Gerente"
 
-    def contenido_principal(self, layout: QVBoxLayout):
-        super().contenido_principal(layout)
+    def contenido_principal(self, layout):
+        # Llamamos primero a la lógica compartida
+        PanelVendedor.contenido_principal(self, layout)
+        PanelRepositor.contenido_principal(self, layout)
 
         box = QGroupBox("📋 Gestión especial del gerente")
         inner = QVBoxLayout()
@@ -62,9 +115,13 @@ class PanelGerente(PanelRepositor):
         btn_pendientes.clicked.connect(self.gestionar_pendientes)
         inner.addWidget(btn_pendientes)
 
-        btn_stats = QPushButton("📈 Ver estadísticas")
+        btn_stats = QPushButton("📈 Ver estadísticas de stock")
         btn_stats.clicked.connect(self.ver_estadisticas)
         inner.addWidget(btn_stats)
+
+        btn_ranking = QPushButton("🏆 Ranking de productos vendidos")
+        btn_ranking.clicked.connect(self.ver_ranking_ventas)
+        inner.addWidget(btn_ranking)
 
         box.setLayout(inner)
         layout.addWidget(box)
@@ -77,6 +134,9 @@ class PanelGerente(PanelRepositor):
         dialogo = EstadisticasStockDialog(self.sesion)
         dialogo.exec()
 
+    def ver_ranking_ventas(self):
+        dialogo = RankingVentasDialog()
+        dialogo.exec()
 
 class PanelDueño(PanelGerente):
     def titulo_ventana(self):

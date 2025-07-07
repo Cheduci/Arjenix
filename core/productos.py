@@ -1,37 +1,45 @@
 from bbdd import db_config
 import random
 
-def buscar_productos(filtro: str = "") -> list[dict]:
-    
+def buscar_productos(nombre: str = "", codigo: str = "", categoria: str | None = None):
     conn = db_config.conectar_db()
     cur = conn.cursor()
 
-    if filtro:
-        cur.execute("""
-            SELECT nombre, codigo_barra, stock, precio_venta, activo
-            FROM productos
-            WHERE LOWER(nombre) LIKE %s OR LOWER(codigo_barra) LIKE %s
-            ORDER BY nombre
-        """, (f"%{filtro.lower()}%", f"%{filtro.lower()}%"))
-    else:
-        cur.execute("""
-            SELECT nombre, codigo_barra, stock, precio_venta, activo
-            FROM productos
-            ORDER BY nombre
-        """)
+    consulta = """
+        SELECT p.nombre, p.codigo_barra, c.nombre AS categoria, p.stock_actual, p.precio_venta, p.estado
+        FROM productos p
+        LEFT JOIN categorias c ON p.categoria_id = c.id
+        WHERE 1=1
+    """
+    valores = []
 
-    productos = [
-        {
-            "nombre": fila[0],
-            "codigo_barra": fila[1],
-            "stock": fila[2],
-            "precio_venta": fila[3],
-            "activo": fila[4]
-        }
-        for fila in cur.fetchall()
-    ]
+    if nombre:
+        consulta += " AND LOWER(p.nombre) LIKE %s"
+        valores.append(f"%{nombre}%")
+
+    if codigo:
+        consulta += " AND p.codigo_barra ILIKE %s"
+        valores.append(f"%{codigo}%")
+
+    if categoria:
+        consulta += " AND c.nombre = %s"
+        valores.append(categoria)
+
+    cur.execute(consulta, tuple(valores))
+    filas = cur.fetchall()
     conn.close()
-    return productos
+
+    return [
+        {
+            "nombre": f[0],
+            "codigo_barra": f[1],
+            "categoria": f[2] or "Sin categoría",
+            "stock_actual": f[3],
+            "precio_venta": f[4],
+            "estado": f[5]
+        } for f in filas
+    ]
+
 
 def modificar_stock(codigo: str, nuevo_stock: int) -> bool:
     try:
@@ -74,7 +82,7 @@ def inactivar_producto(codigo: str) -> bool:
     try:
         conn = db_config.conectar_db()
         cur = conn.cursor()
-        cur.execute("UPDATE productos SET activo = FALSE WHERE codigo_barra = %s", (codigo,))
+        cur.execute("UPDATE productos SET estado = 'inactivo' WHERE codigo_barra = %s", (codigo,))
         conn.commit()
         conn.close()
         return True
@@ -101,17 +109,18 @@ def obtener_producto_por_codigo(codigo: str) -> dict | None:
 
         cur.execute("""
             SELECT
-                nombre,
-                codigo_barra,
-                COALESCE(descripcion, ''),
-                COALESCE(categoria_id, 0),
-                COALESCE(stock_actual, 0),
-                COALESCE(precio_compra, 0),
-                COALESCE(precio_venta, 0),
-                COALESCE(estado, 'pendiente'),
-                foto  -- si es BYTEA, dejala sin COALESCE
-            FROM productos
-            WHERE codigo_barra = %s
+                p.nombre,
+                p.codigo_barra,
+                COALESCE(p.descripcion, ''),
+                COALESCE(c.nombre, 'Sin categoría'),
+                COALESCE(p.stock_actual, 0),
+                COALESCE(p.precio_compra, 0),
+                COALESCE(p.precio_venta, 0),
+                COALESCE(p.estado, 'pendiente'),
+                p.foto  -- si es BYTEA, dejala sin COALESCE
+            FROM productos p
+            LEFT JOIN categorias c ON p.categoria_id = c.id
+            WHERE p.codigo_barra = %s
         """, (codigo,))
 
         fila = cur.fetchone()
@@ -126,7 +135,7 @@ def obtener_producto_por_codigo(codigo: str) -> dict | None:
                 "stock": fila[4],
                 "precio_compra": float(fila[5]),
                 "precio_venta": float(fila[6]),
-                "activo": fila[7],
+                "estado": fila[7],
                 "foto": fila[8]
             }
         return None
@@ -199,6 +208,11 @@ def aprobar_producto(codigo: str, nombre: str, descripcion: str, categoria: str,
         else:
             cur.execute("INSERT INTO categorias (nombre) VALUES (%s) RETURNING id", (categoria,))
             categoria_id = cur.fetchone()[0]
+
+        # 💰 Validación de precios
+        if precio_compra is not None and precio_venta < precio_compra:
+            print("❌ El precio de venta no puede ser menor que el de compra.")
+            return False
 
         # Armar UPDATE dinámico
         columnas = [
@@ -306,3 +320,27 @@ def categoria_en_uso(nombre: str) -> bool:
     en_uso = cur.fetchone() is not None
     conn.close()
     return en_uso
+
+def ranking_ventas():
+    conn = db_config.conectar_db()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT p.nombre, p.codigo_barra,
+               SUM(d.cantidad) AS cantidad_vendida,
+               SUM(d.cantidad * d.precio_unitario) AS total_recaudado
+        FROM detalle_ventas d
+        JOIN productos p ON d.codigo_producto = p.codigo_barra
+        GROUP BY p.nombre, p.codigo_barra
+        ORDER BY cantidad_vendida DESC
+        LIMIT 10
+    """)
+    filas = cur.fetchall()
+    conn.close()
+    return [
+        {
+            "nombre": f[0],
+            "codigo_barra": f[1],
+            "cantidad_vendida": f[2],
+            "total_recaudado": f[3]
+        } for f in filas
+    ]

@@ -31,6 +31,8 @@ class MainRouter:
             self.ventana = PanelRepositor(self.sesion)
         elif rol == "gerente":
             self.ventana = PanelGerente(self.sesion)
+        elif rol == "vendedor":
+            self.ventana = PanelVendedor(self.sesion)
         else:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(None, "Rol desconocido", f"No hay panel asignado para el rol: {rol}")
