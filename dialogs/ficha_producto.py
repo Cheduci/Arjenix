@@ -109,9 +109,9 @@ class FichaProductoDialog(QDialog):
         self.btn_eliminar.clicked.connect(self.eliminar_producto)
         self.btn_exportar.clicked.connect(self.exportar_etiqueta_pdf)
 
-        self.acciones_layout.addWidget(self.btn_guardar_stock)
-        self.acciones_layout.addWidget(self.btn_guardar_precios)
-        self.acciones_layout.addWidget(self.btn_estado)
+        # self.acciones_layout.addWidget(self.btn_guardar_stock)
+        # self.acciones_layout.addWidget(self.btn_guardar_precios)
+        # self.acciones_layout.addWidget(self.btn_estado)
         self.acciones_layout.addWidget(self.btn_exportar)
         self.acciones_layout.addStretch()
 

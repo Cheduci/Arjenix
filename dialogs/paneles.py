@@ -8,33 +8,39 @@ from dialogs.pendientes_producto import PendientesDeAprobacion
 from dialogs.estadisticas_stock import EstadisticasStockDialog
 from dialogs.gestor_usuarios import GestorUsuariosDialog
 from dialogs.gestionar_categorias import GestionarCategoriasDialog
-from dialogs.buscar_producto import BuscarProductoDialog
-from dialogs.ver_productos import VerProductosDialog
 from dialogs.ranking_ventas import RankingVentasDialog
 from dialogs.iniciar_venta import IniciarVentaDialog
 from helpers.mixin_cuenta import *
 from helpers.panel_base import *
 
+
+def crear_box_productos(parent):
+    box_productos = QGroupBox("📦 Productos")
+    inner = QVBoxLayout()
+
+    btn_ver_todos = QPushButton("📋 Ver todos los productos")
+    btn_ver_todos.clicked.connect(parent.ver_todos_los_productos)
+    inner.addWidget(btn_ver_todos)
+
+    btn_buscar = QPushButton("🔎 Buscar producto")
+    btn_buscar.clicked.connect(parent.buscar_producto)
+    inner.addWidget(btn_buscar)
+
+    box_productos.setLayout(inner)
+    return box_productos
+
 class PanelVendedor(BasePanel):
+    def __init__(self, sesion):
+        super().__init__(sesion)
+        self.sesion = sesion
+
     def titulo_ventana(self):
         return "🛒 Panel de Vendedor"
 
     def contenido_principal(self, layout):
 
         # 📦 Gestión de productos
-        box_productos = QGroupBox("📦 Productos")
-        inner = QVBoxLayout()
-
-        btn_ver_todos = QPushButton("📋 Ver todos los productos")
-        btn_ver_todos.clicked.connect(self.ver_todos_los_productos)
-        inner.addWidget(btn_ver_todos)
-
-        btn_buscar = QPushButton("🔎 Buscar producto")
-        btn_buscar.clicked.connect(self.buscar_producto)
-        inner.addWidget(btn_buscar)
-
-        box_productos.setLayout(inner)
-        layout.addWidget(box_productos)
+        layout.addWidget(crear_box_productos(self))
 
         # 🛍️ Ventas 
         box_ventas = QGroupBox("🛍️ Ventas")
@@ -47,14 +53,6 @@ class PanelVendedor(BasePanel):
         box_ventas.setLayout(inner)
         layout.addWidget(box_ventas)
     
-    def buscar_producto(self):
-        dialogo = BuscarProductoDialog(sesion=self.sesion, modo="ver")
-        dialogo.exec()
-
-    def ver_todos_los_productos(self):
-        dialogo = VerProductosDialog(self.sesion)
-        dialogo.exec()
-    
     def iniciar_venta(self):
         dialogo = IniciarVentaDialog(self.sesion)
         dialogo.exec()
@@ -62,10 +60,17 @@ class PanelVendedor(BasePanel):
 
 
 class PanelRepositor(BasePanel):
+    def __init__(self, sesion, standalone=True):
+        self.standalone = standalone
+        super().__init__(sesion)
+        self.sesion = sesion
+
     def titulo_ventana(self):
         return "📦 Panel de Repositor"
 
     def contenido_principal(self, layout: QVBoxLayout):
+        if self.standalone:
+            layout.addWidget(crear_box_productos(self))
 
         box = QGroupBox("🧾 Reposición de stock")
         inner = QVBoxLayout()
@@ -87,6 +92,8 @@ class PanelRepositor(BasePanel):
         dialogo = AltaProductoDialog(self.sesion)
         dialogo.exec()
 
+    
+
     def ver_stock_bajo(self):
         QMessageBox.information(self, "Stock bajo", "👉 Aquí se mostrarán los productos con stock crítico.")
 
@@ -98,6 +105,11 @@ class PanelRepositor(BasePanel):
         
         
 class PanelGerente(PanelRepositor, PanelVendedor):
+    def __init__(self, sesion, router=None):
+        PanelRepositor.__init__(self, sesion, standalone=False)
+        self.sesion = sesion
+        self.router = router
+
     def titulo_ventana(self):
         return "🧑‍💼 Panel de Gerente"
     
@@ -211,6 +223,11 @@ class PanelAjustesSistema(QWidget):
         QMessageBox.information(self, "Mantenimiento", "Modo mantenimiento activado.")
 
 class PanelDueño(PanelGerente):
+    def __init__(self, sesion, router=None):
+        super().__init__(sesion, router)
+        self.sesion = sesion
+        self.router = router
+
     def titulo_ventana(self):
         return "👑 Panel de Dueño"
 

@@ -1,6 +1,8 @@
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QSizePolicy
 from helpers.encabezado_widget import EncabezadoWidget
 from helpers.mixin_cuenta import *
+from dialogs.buscar_producto import BuscarProductoDialog
+from dialogs.ver_productos import VerProductosDialog
 
 class BasePanel(QMainWindow, MixinCuentaUsuario):
     def __init__(self, sesion: dict, router=None):
@@ -54,3 +56,11 @@ class BasePanel(QMainWindow, MixinCuentaUsuario):
 
     def contenido_principal(self, layout: QVBoxLayout):
         raise NotImplementedError("Debés implementar el contenido principal del panel")
+    
+    def buscar_producto(self):
+        dialogo = BuscarProductoDialog(sesion=self.sesion, modo="ver")
+        dialogo.exec()
+
+    def ver_todos_los_productos(self):
+        dialogo = VerProductosDialog(self.sesion)
+        dialogo.exec()
