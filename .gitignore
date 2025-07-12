@@ -1,2 +1,6 @@
 exportaciones/
 __pycache__/
+dialogs/__pycache__/
+core/__pycache__/
+bbdd/__pycache__/
+modulos/__pycache__/

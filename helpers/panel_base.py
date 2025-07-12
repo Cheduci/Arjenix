@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QSizePolicy
 from helpers.encabezado_widget import EncabezadoWidget
 from helpers.mixin_cuenta import *
 
@@ -23,6 +23,8 @@ class BasePanel(QMainWindow, MixinCuentaUsuario):
 
         # 🧱 Contenido específico
         self.contenido_principal(layout)
+
+        contenedor.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         contenedor.setLayout(layout)
         self.setCentralWidget(contenedor)
