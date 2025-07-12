@@ -94,7 +94,7 @@ def reactivar_producto(codigo: str) -> bool:
     try:
         conn = db_config.conectar_db()
         cur = conn.cursor()
-        cur.execute("UPDATE productos SET activo = TRUE WHERE codigo_barra = %s", (codigo,))
+        cur.execute("UPDATE productos SET estado = 'activo' WHERE codigo_barra = %s", (codigo,))
         conn.commit()
         conn.close()
         return True

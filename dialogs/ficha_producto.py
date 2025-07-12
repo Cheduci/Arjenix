@@ -3,13 +3,15 @@ from PySide6.QtWidgets import (
     QMessageBox, QSpinBox, QDoubleSpinBox, QInputDialog, QGroupBox
 )
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from core import productos
 from bbdd import db_config
 import os
 from helpers.exportar import exportar_codigo_pdf
 
 class FichaProductoDialog(QDialog):
+    estado_actualizado = Signal()
+    
     def __init__(self, sesion: dict, codigo: str):
         super().__init__()
         self.sesion = sesion
@@ -21,18 +23,21 @@ class FichaProductoDialog(QDialog):
         self.cargar_datos()
 
     def setup_ui(self):
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+        # Layout principal: horizontal (izquierda contenido, derecha acciones)
+        main_layout = QHBoxLayout()
+        self.setLayout(main_layout)
 
+        # 🧱 Panel izquierdo (información del producto)
+        left_panel = QVBoxLayout()
+    
         # 🖼️ Imagen
         self.imagen = QLabel()
         self.imagen.setAlignment(Qt.AlignCenter)
-        self.layout.addWidget(self.imagen)
+        left_panel.addWidget(self.imagen)
 
-        # 📦 Grupo: Información general
+        # Información general
         info_group = QGroupBox("📦 Información del producto")
         info_layout = QVBoxLayout()
-
         self.nombre = QLabel()
         font = self.nombre.font()
         font.setPointSize(14)
@@ -40,86 +45,79 @@ class FichaProductoDialog(QDialog):
         self.nombre.setFont(font)
         self.nombre.setAlignment(Qt.AlignCenter)
         info_layout.addWidget(self.nombre)
-
         self.codigo_label = QLabel()
         info_layout.addWidget(self.codigo_label)
-
         self.descripcion = QTextEdit()
         self.descripcion.setReadOnly(True)
         self.descripcion.setPlaceholderText("Sin descripción disponible")
         info_layout.addWidget(self.descripcion)
-
         info_group.setLayout(info_layout)
-        self.layout.addWidget(info_group)
+        left_panel.addWidget(info_group)
 
         # 📊 Grupo: Stock
         stock_group = QGroupBox("📈 Inventario")
         stock_layout = QHBoxLayout()
-
         stock_layout.addWidget(QLabel("Stock actual:"))
         self.campo_stock = QSpinBox()
         self.campo_stock.setRange(0, 100000)
         self.campo_stock.setEnabled(False)
         stock_layout.addWidget(self.campo_stock)
-
         stock_group.setLayout(stock_layout)
-        self.layout.addWidget(stock_group)
+        left_panel.addWidget(stock_group)
 
         # 💰 Grupo: Precios
         precios_group = QGroupBox("💰 Precios")
         precio_layout = QHBoxLayout()
-
         self.precio_compra = QDoubleSpinBox()
         self.precio_compra.setPrefix("$")
         self.precio_compra.setMaximum(999999)
         self.precio_compra.setDecimals(2)
         self.precio_compra.setEnabled(False)
         self.precio_compra.setToolTip("Precio de compra del proveedor")
-
         self.precio_venta = QDoubleSpinBox()
         self.precio_venta.setPrefix("$")
         self.precio_venta.setMaximum(999999)
         self.precio_venta.setDecimals(2)
         self.precio_venta.setEnabled(False)
         self.precio_venta.setToolTip("Precio de venta al cliente")
-
         precio_layout.addWidget(QLabel("Compra:"))
         precio_layout.addWidget(self.precio_compra)
         precio_layout.addSpacing(30)
         precio_layout.addWidget(QLabel("Venta:"))
         precio_layout.addWidget(self.precio_venta)
-
         precios_group.setLayout(precio_layout)
-        self.layout.addWidget(precios_group)
+        left_panel.addWidget(precios_group)
+
+        left_panel.addStretch()
+        main_layout.addLayout(left_panel)
+
+        # 🧱 Panel derecho (botones de acciones)
+        right_panel = QVBoxLayout()
 
         # 🛠️ Grupo: Acciones disponibles
         acciones_group = QGroupBox("⚙️ Acciones")
-        acciones_layout = QHBoxLayout()
-
+        self.acciones_layout = QVBoxLayout()
         self.btn_guardar_stock = QPushButton("💾 Guardar stock")
         self.btn_guardar_precios = QPushButton("💾 Guardar precios")
         self.btn_estado = QPushButton()
         self.btn_eliminar = QPushButton("🗑️ Eliminar permanentemente")
+        self.btn_exportar = QPushButton("📤 Exportar etiqueta PDF")
 
         self.btn_guardar_stock.clicked.connect(self.actualizar_stock)
         self.btn_guardar_precios.clicked.connect(self.actualizar_precios)
         self.btn_estado.clicked.connect(self.toggle_estado_producto)
         self.btn_eliminar.clicked.connect(self.eliminar_producto)
-
-        acciones_layout.addWidget(self.btn_guardar_stock)
-        acciones_layout.addWidget(self.btn_guardar_precios)
-        self.layout.addWidget(self.btn_estado)
-        acciones_layout.addWidget(self.btn_eliminar)
-
-        acciones_group.setLayout(acciones_layout)
-        self.layout.addWidget(acciones_group)
-
-        # 📤 Exportar
-        self.btn_exportar = QPushButton("📤 Exportar etiqueta PDF")
         self.btn_exportar.clicked.connect(self.exportar_etiqueta_pdf)
-        self.layout.addWidget(self.btn_exportar)
 
-        self.layout.addStretch()
+        self.acciones_layout.addWidget(self.btn_guardar_stock)
+        self.acciones_layout.addWidget(self.btn_guardar_precios)
+        self.acciones_layout.addWidget(self.btn_estado)
+        self.acciones_layout.addWidget(self.btn_exportar)
+        self.acciones_layout.addStretch()
+
+        acciones_group.setLayout(self.acciones_layout)
+        right_panel.addWidget(acciones_group)
+        main_layout.addLayout(right_panel)
 
 
     def cargar_datos(self):
@@ -203,21 +201,21 @@ class FichaProductoDialog(QDialog):
 
         if rol in ["dueño", "gerente", "repositor"]:
             self.campo_stock.setEnabled(True)
-            self.layout.addWidget(self.btn_guardar_stock)
+            self.acciones_layout.addWidget(self.btn_guardar_stock)
 
         if rol in ["dueño", "gerente"]:
             self.precio_compra.setEnabled(True)
             self.precio_venta.setEnabled(True)
-            self.layout.addWidget(self.btn_guardar_precios)
+            self.acciones_layout.addWidget(self.btn_guardar_precios)
 
         if rol in ["dueño", "gerente"]:
             self.precio_compra.setEnabled(True)
             self.precio_venta.setEnabled(True)
-            self.layout.addWidget(self.btn_guardar_precios)
-            self.layout.addWidget(self.btn_estado)
+            self.acciones_layout.addWidget(self.btn_guardar_precios)
+            self.acciones_layout.addWidget(self.btn_estado)
 
         if rol == "dueño":
-            self.layout.addWidget(self.btn_eliminar)
+            self.acciones_layout.addWidget(self.btn_eliminar)
 
     # Métodos a definir para acciones:
     def actualizar_stock(self): 
@@ -270,6 +268,7 @@ class FichaProductoDialog(QDialog):
             )
             if confirmado == QMessageBox.Yes:
                 productos.inactivar_producto(self.codigo)
+                self.estado_actualizado.emit()
 
         elif estado == "inactivo":
             confirmado = QMessageBox.question(
@@ -278,6 +277,7 @@ class FichaProductoDialog(QDialog):
             )
             if confirmado == QMessageBox.Yes:
                 productos.reactivar_producto(self.codigo)
+                self.estado_actualizado.emit()
 
         # 🔁 Recargar datos actualizados
         self.cargar_datos()
