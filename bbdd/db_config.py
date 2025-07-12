@@ -60,6 +60,7 @@ def ejecutar_schema_si_necesario(cur):
 
 def conectar_db():
     try:
+        # Solo crear la base si no existe, pero NO ejecutar el schema aquí
         crear_base_de_datos()
         conn = psycopg.connect(
             dbname=DB_NAME,
@@ -68,8 +69,6 @@ def conectar_db():
             host=DB_HOST,
             port=DB_PORT
         )
-        cur = conn.cursor()
-        ejecutar_schema_si_necesario(cur)
         return conn
     except OperationalError as e:
         raise ConnectionError(f"No se pudo conectar a la base de datos:\n{e}")

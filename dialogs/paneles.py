@@ -235,27 +235,19 @@ class PanelDueño(PanelGerente):
 
         box = QGroupBox("👑 Panel de Dueño")
         inner = QHBoxLayout()
-        # fila_paneles = QWidget()
-        # layout_horizontal = QHBoxLayout(fila_paneles)
-        # fila_paneles.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        # layout_padre.addWidget(fila_paneles)
-
-        gerente = PanelGerente(self.sesion, self.router)
 
         # Columna vendedor
         panel_vendedor = QWidget()
         layout_vendedor = QVBoxLayout()
         panel_vendedor.setLayout(layout_vendedor)
-        gerente.contenido_vendedor(layout_vendedor)
-        # layout_horizontal.addWidget(panel_vendedor)
+        self.contenido_vendedor(layout_vendedor)
         inner.addWidget(panel_vendedor)
 
         # Columna gerente
         panel_gerente = QWidget()
         layout_gerente = QVBoxLayout()
         panel_gerente.setLayout(layout_gerente)
-        gerente.contenido_gerente(layout_gerente)
-        # layout_horizontal.addWidget(panel_gerente)
+        self.contenido_gerente(layout_gerente)
         inner.addWidget(panel_gerente)
 
         # 👑 Panel Dueño 
@@ -263,20 +255,17 @@ class PanelDueño(PanelGerente):
         layout_duenio = QVBoxLayout()
         panel_duenio.setLayout(layout_duenio)
         self.contenido_exclusivo_duenio(layout_duenio)
-        # layout_horizontal.addWidget(panel_duenio)
         inner.addWidget(panel_duenio)
 
         # 🛠️ Panel Ajustes
         panel_ajustes = PanelAjustesSistema()
-        # layout_horizontal.addWidget(panel_ajustes)
         inner.addWidget(panel_ajustes)
 
         # Columna repositor
         panel_repositor = QWidget()
         layout_repositor = QVBoxLayout()
         panel_repositor.setLayout(layout_repositor)
-        gerente.contenido_repositor(layout_repositor)
-        # layout_horizontal.addWidget(panel_repositor)
+        self.contenido_repositor(layout_repositor)
         inner.addWidget(panel_repositor)
 
         box.setLayout(inner)

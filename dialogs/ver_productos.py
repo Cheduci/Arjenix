@@ -58,7 +58,7 @@ class VerProductosDialog(QDialog):
     def abrir_ficha_producto(self, fila, _col):
         codigo = self.tabla.item(fila, 1).text()
         dialogo = FichaProductoDialog(self.sesion, codigo)
-        dialogo.estado_actualizado.connect(self.cargar_datos)
+        dialogo.producto_actualizado.connect(self.cargar_datos)
         dialogo.exec()
         
     def actualizar_boton_ver(self):

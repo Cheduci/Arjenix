@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QSpinBox, QPushButton, QFileDialog, QMessageBox, QComboBox, QHBoxLayout, 
     QSizePolicy, QInputDialog
 )
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtCore import Qt
 from core import productos
 from modulos import camara
@@ -30,6 +30,7 @@ class AprobarProductoDialog(QDialog):
         # 📝 Descripción
         layout.addWidget(QLabel("Descripción:"))
         self.descripcion = QTextEdit()
+        self.descripcion.setMaximumHeight(60)  # Puedes ajustar este valor según prefieras
         layout.addWidget(self.descripcion)
 
         # 🏷️ Categoría
@@ -42,29 +43,41 @@ class AprobarProductoDialog(QDialog):
         hbox_categoria.addWidget(btn_nueva_categoria)
         layout.addLayout(hbox_categoria)
         self.cargar_categorias()
-
-
+        
+        # Agrupar horizontalmente precio de compra, precio de venta y stock mínimo
+        hbox_precios_stock = QHBoxLayout()
+        
         # 💰 Precio de compra
-        layout.addWidget(QLabel("Precio de compra:"))
+        vbox_compra = QVBoxLayout()
+        vbox_compra.addWidget(QLabel("Precio de compra:"))
         self.precio_compra = QDoubleSpinBox()
         self.precio_compra.setPrefix("$")
         self.precio_compra.setMaximum(999999999)
         self.precio_compra.setDecimals(2)
-        layout.addWidget(self.precio_compra)
-
+        vbox_compra.addWidget(self.precio_compra)
+        hbox_precios_stock.addLayout(vbox_compra)
+        
         # 💸 Precio de venta
-        layout.addWidget(QLabel("Precio de venta:"))
+        vbox_venta = QVBoxLayout()
+        vbox_venta.addWidget(QLabel("Precio de venta:"))
         self.precio_venta = QDoubleSpinBox()
         self.precio_venta.setPrefix("$")
         self.precio_venta.setMaximum(999999999)
         self.precio_venta.setDecimals(2)
-        layout.addWidget(self.precio_venta)
-
+        vbox_venta.addWidget(self.precio_venta)
+        hbox_precios_stock.addLayout(vbox_venta)
+        
         # 📦 Stock mínimo
-        layout.addWidget(QLabel("Stock mínimo:"))
+        vbox_stock = QVBoxLayout()
+        vbox_stock.addWidget(QLabel("Stock mínimo:"))
         self.stock_minimo = QSpinBox()
         self.stock_minimo.setRange(0, 1000000)
-        layout.addWidget(self.stock_minimo)
+        vbox_stock.addWidget(self.stock_minimo)
+        hbox_precios_stock.addLayout(vbox_stock)
+        
+        # Agregar el layout horizontal al layout principal
+        layout.addLayout(hbox_precios_stock)
+        
 
         # 🖼️ Imagen del producto
         layout.addWidget(QLabel("Imagen del producto:"))
@@ -175,7 +188,6 @@ class AprobarProductoDialog(QDialog):
         foto = camara.capturar_foto()
         if foto:
             self.foto_bytes = foto
-            from PySide6.QtGui import QImage
             image = QImage.fromData(foto)
             self.label_imagen.setPixmap(QPixmap.fromImage(image).scaled(200, 200, Qt.KeepAspectRatio))
 

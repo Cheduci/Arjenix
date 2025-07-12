@@ -1,16 +1,16 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit,
-    QMessageBox, QSpinBox, QDoubleSpinBox, QInputDialog, QGroupBox
+    QMessageBox, QSpinBox, QDoubleSpinBox, QInputDialog, QGroupBox, QFileDialog
 )
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtCore import Qt, Signal
 from core import productos
-from bbdd import db_config
+from modulos import camara
 import os
 from helpers.exportar import exportar_codigo_pdf
 
 class FichaProductoDialog(QDialog):
-    estado_actualizado = Signal()
+    producto_actualizado = Signal()
     
     def __init__(self, sesion: dict, codigo: str):
         super().__init__()
@@ -97,8 +97,8 @@ class FichaProductoDialog(QDialog):
         # 🛠️ Grupo: Acciones disponibles
         acciones_group = QGroupBox("⚙️ Acciones")
         self.acciones_layout = QVBoxLayout()
-        self.btn_guardar_stock = QPushButton("💾 Guardar stock")
-        self.btn_guardar_precios = QPushButton("💾 Guardar precios")
+        self.btn_guardar_stock = QPushButton("💾 Actualizar stock")
+        self.btn_guardar_precios = QPushButton("💾 Actualizar precios")
         self.btn_estado = QPushButton()
         self.btn_eliminar = QPushButton("🗑️ Eliminar permanentemente")
         self.btn_exportar = QPushButton("📤 Exportar etiqueta PDF")
@@ -114,6 +114,20 @@ class FichaProductoDialog(QDialog):
         # self.acciones_layout.addWidget(self.btn_estado)
         self.acciones_layout.addWidget(self.btn_exportar)
         self.acciones_layout.addStretch()
+
+        # 📸 Grupo: Actualizar foto
+        self.foto_group = QGroupBox("Actualizar foto")
+        self.foto_layout = QHBoxLayout()
+
+        btn_examinar = QPushButton("Examinar...")
+        btn_examinar.clicked.connect(self.examinar_foto)
+        self.foto_layout.addWidget(btn_examinar)
+
+        btn_sacar = QPushButton("Sacar foto")
+        btn_sacar.clicked.connect(self.sacar_foto)
+        self.foto_layout.addWidget(btn_sacar)
+
+        self.foto_group.setLayout(self.foto_layout)
 
         acciones_group.setLayout(self.acciones_layout)
         right_panel.addWidget(acciones_group)
@@ -207,11 +221,7 @@ class FichaProductoDialog(QDialog):
             self.precio_compra.setEnabled(True)
             self.precio_venta.setEnabled(True)
             self.acciones_layout.addWidget(self.btn_guardar_precios)
-
-        if rol in ["dueño", "gerente"]:
-            self.precio_compra.setEnabled(True)
-            self.precio_venta.setEnabled(True)
-            self.acciones_layout.addWidget(self.btn_guardar_precios)
+            self.acciones_layout.addWidget(self.foto_group)
             self.acciones_layout.addWidget(self.btn_estado)
 
         if rol == "dueño":
@@ -229,6 +239,7 @@ class FichaProductoDialog(QDialog):
         if confirm == QMessageBox.Yes:
             if productos.modificar_stock(self.codigo, nuevo_stock):
                 QMessageBox.information(self, "Éxito", "✅ Stock actualizado correctamente.")
+                self.producto_actualizado.emit()  # <--- EMITIR AQUÍ
                 self.accept()
             else:
                 QMessageBox.critical(self, "Error", "No se pudo actualizar el stock.")
@@ -246,14 +257,11 @@ class FichaProductoDialog(QDialog):
             f"¿Actualizar los precios?\nCompra: ${compra:.2f}\nVenta: ${venta:.2f}",
             QMessageBox.Yes | QMessageBox.No
         )
-        confirm = QMessageBox.question(
-            self, "Confirmar",
-            f"¿Actualizar precios?\nCompra: ${compra:.2f}\nVenta: ${venta:.2f}",
-            QMessageBox.Yes | QMessageBox.No
-        )
+        
         if confirm == QMessageBox.Yes:
             if productos.actualizar_precios(self.codigo, compra, venta):
                 QMessageBox.information(self, "Éxito", "✅ Precios actualizados.")
+                self.producto_actualizado.emit()  # <--- EMITIR AQUÍ
                 self.accept()
             else:
                 QMessageBox.critical(self, "Error", "No se pudieron actualizar los precios.")
@@ -268,8 +276,7 @@ class FichaProductoDialog(QDialog):
             )
             if confirmado == QMessageBox.Yes:
                 productos.inactivar_producto(self.codigo)
-                self.estado_actualizado.emit()
-
+                self.producto_actualizado.emit()  # <--- EMITIR AQUÍ
         elif estado == "inactivo":
             confirmado = QMessageBox.question(
                 self, "Reactivar", "¿Querés reactivar este producto?",
@@ -277,9 +284,7 @@ class FichaProductoDialog(QDialog):
             )
             if confirmado == QMessageBox.Yes:
                 productos.reactivar_producto(self.codigo)
-                self.estado_actualizado.emit()
-
-        # 🔁 Recargar datos actualizados
+                self.producto_actualizado.emit()  # <--- EMITIR AQUÍ
         self.cargar_datos()
 
     
@@ -291,6 +296,7 @@ class FichaProductoDialog(QDialog):
         if confirm == QMessageBox.Yes:
             if productos.eliminar_producto(self.codigo):
                 QMessageBox.information(self, "Eliminado", "🗑️ Producto eliminado del sistema.")
+                self.producto_actualizado.emit()  # <--- EMITIR AQUÍ
                 self.accept()
             else:
                 QMessageBox.critical(self, "Error", "No se pudo eliminar el producto.")
@@ -307,3 +313,35 @@ class FichaProductoDialog(QDialog):
         precio = self.producto["precio_venta"]
 
         exportar_codigo_pdf(nombre, codigo, precio, cantidad)
+
+    def actualizar_foto(self, foto_bytes):
+        """Actualiza la imagen en la interfaz y la base de datos."""
+        if not foto_bytes:
+            QMessageBox.warning(self, "Sin imagen", "No se recibió ninguna imagen.")
+            return
+
+        # Actualizar QLabel
+        pixmap = QPixmap()
+        pixmap.loadFromData(foto_bytes)
+        self.imagen.setPixmap(pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+        # Guardar en base de datos
+        exito = productos.actualizar_foto(self.codigo, foto_bytes)
+        if exito:
+            QMessageBox.information(self, "Foto actualizada", "✅ La foto del producto fue actualizada.")
+            self.producto_actualizado.emit()  # <--- EMITIR AQUÍ
+        else:
+            QMessageBox.critical(self, "Error", "No se pudo actualizar la foto en la base de datos.")
+
+    def examinar_foto(self):
+        ruta, _ = QFileDialog.getOpenFileName(self, "Seleccionar imagen", "", "Imágenes (*.png *.jpg *.jpeg)")
+        if ruta:
+            with open(ruta, "rb") as f:
+                self.foto_bytes = f.read()
+            self.actualizar_foto(self.foto_bytes)
+
+    def sacar_foto(self):
+        foto = camara.capturar_foto()
+        if foto:
+            self.foto_bytes = foto
+            self.actualizar_foto(self.foto_bytes)

@@ -344,3 +344,20 @@ def ranking_ventas():
             "total_recaudado": f[3]
         } for f in filas
     ]
+
+def actualizar_foto(codigo: str, foto_bytes: bytes) -> bool:
+    """Actualiza la foto de un producto en la base de datos."""
+    try:
+        conn = db_config.conectar_db()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE productos SET foto = %s WHERE codigo_barra = %s",
+            (foto_bytes, codigo)
+        )
+        conn.commit()
+        exito = cur.rowcount > 0
+        conn.close()
+        return exito
+    except Exception as e:
+        print(f"Error al actualizar foto: {e}")
+        return False
