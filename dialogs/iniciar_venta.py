@@ -10,6 +10,7 @@ from PySide6.QtCore import QUrl, Qt
 from modulos.camara_thread import CamaraLoopThread
 from core import productos
 from pathlib import Path
+from helpers.dialogos import solicitar_cantidad
 
 
 
@@ -127,16 +128,13 @@ class IniciarVentaDialog(QDialog):
 
         # Si interactivo → preguntar por la cantidad
         if interactivo:
-            cantidad_ingresada, ok = QInputDialog.getInt(
-                self,
-                "Cantidad",
-                f"Cantidad de unidades de '{p['descripcion']}' a agregar:",
-                1,            # valor predeterminado
-                1,            # mínimo
-                p["stock"],   # máximo
+            cantidad_ingresada = solicitar_cantidad(
+                parent=self,
+                descripcion=p["descripcion"],
+                stock=p["stock"]
             )
-            if not ok:
-                return True  # Cancela el ingreso, no es error
+            if cantidad_ingresada is None:
+                return True  # Usuario canceló sin error
             cantidad = cantidad_ingresada
 
         if cantidad > p["stock"]:
@@ -204,11 +202,15 @@ class IniciarVentaDialog(QDialog):
 
 
     def buscar_producto(self):
-        buscador = BuscarProductoDialog(modo="seleccionar")
-        buscador.exec()
-        codigo = buscador.obtener_codigo_seleccionado()
-        if codigo:
-            self.agregar_por_codigo(codigo)
+        buscador = BuscarProductoDialog(self.sesion, modo="seleccionar")
+        if buscador.exec():
+            resultado = buscador.obtener_codigo_seleccionado()
+            if resultado:
+                if isinstance(resultado, tuple):
+                    codigo, cantidad = resultado
+                else:
+                    codigo, cantidad = resultado, 1  # fallback por compatibilidad
+                self.agregar_por_codigo(codigo, cantidad)
 
     def modificar_item(self):
         fila = self.tabla.currentRow()

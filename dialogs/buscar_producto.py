@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 )
 from core import productos  # Debe exponer una función para búsqueda filtrada
 from dialogs.ficha_producto import FichaProductoDialog
+from helpers.dialogos import solicitar_cantidad
 
 class BuscarProductoDialog(QDialog):
     def __init__(self, sesion:dict, modo="ver", parent=None):
@@ -87,9 +88,15 @@ class BuscarProductoDialog(QDialog):
     
     def aceptar_producto(self, fila, _col):
         codigo = self.tabla.item(fila, 1).text()  # columna con código_barra
+        nombre = self.tabla.item(fila, 0).text()
+        stock = int(self.tabla.item(fila, 3).text())
+
+        cantidad = solicitar_cantidad(self, descripcion=nombre, stock=stock)
+        if cantidad is None:
+            return  # Usuario canceló
 
         if self.modo == "seleccionar":
-            self.codigo_seleccionado = codigo
+            self.codigo_seleccionado = (codigo, cantidad)
             self.accept()
         elif self.modo == "ver":
             dlg = FichaProductoDialog(self.sesion, codigo)
