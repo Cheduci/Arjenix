@@ -2,13 +2,14 @@ from dialogs.buscar_producto import BuscarProductoDialog
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QTableWidget, QTableWidgetItem, QWidget, QSpacerItem, QSizePolicy,
-    QInputDialog, QMessageBox
+    QInputDialog, QMessageBox, 
 )
 from PySide6.QtMultimedia import QSoundEffect
-from PySide6.QtCore import QUrl
-from modulos.camara_thread import CamaraThread
-from modulos.camara import escanear_codigo_opencv
+from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QUrl, QTimer, Qt
+from modulos.camara_thread import CamaraLoopThread
 from core import productos, ventas
+
 
 
 class IniciarVentaDialog(QDialog):
@@ -18,11 +19,14 @@ class IniciarVentaDialog(QDialog):
         self.setWindowTitle("🛒 Iniciar venta")
         self.setMinimumSize(960, 600)
         self.carrito = []
+        self.camara_loop = None  # Hilo de cámara
 
         self.setup_ui()
-        self.camara_thread = CamaraThread()
-        self.camara_thread.codigo_detectado.connect(self.agregar_por_codigo)
-        self.camara_thread.start()
+
+    def closeEvent(self, event):
+        if self.camara_loop and self.camara_loop.isRunning():
+            self.detener_escaneo()  # Cerrás hilo y limpiás interfaz
+        event.accept()          # Permitís el cierre de la ventana
 
     def setup_ui(self):
         main_layout = QHBoxLayout()
@@ -30,6 +34,13 @@ class IniciarVentaDialog(QDialog):
 
         # 🧾 Izquierda: productos escaneados
         izquierda = QVBoxLayout()
+
+        # --- Preview de cámara ---
+        self.lbl_preview = QLabel("Cámara desactivada")
+        self.lbl_preview.setAlignment(Qt.AlignCenter)
+        self.lbl_preview.setFixedSize(320, 240)  # Ajusta el tamaño si lo deseas
+        izquierda.addWidget(self.lbl_preview)
+
         self.tabla = QTableWidget(0, 4)
         self.tabla.setHorizontalHeaderLabels(["Producto", "Cantidad", "Precio u.", "Subtotal"])
         self.tabla.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -48,8 +59,6 @@ class IniciarVentaDialog(QDialog):
         self.btn_escanear.setCheckable(True)
         self.btn_escanear.clicked.connect(self.toggle_escaneo)
         acciones.addWidget(self.btn_escanear)
-
-
 
         btn_manual = QPushButton("📥 Ingreso manual")
         btn_manual.clicked.connect(self.ingreso_manual)
@@ -77,61 +86,89 @@ class IniciarVentaDialog(QDialog):
         wrapper.setLayout(acciones)
         main_layout.addWidget(wrapper, 1)
 
-    def iniciar_escaneo(self):
-        # ⏳ Podés hacerlo asincrónico luego si lo querés no-bloqueante
-        codigo = escanear_codigo_opencv()
-        if not codigo:
-            return
+        # Iniciar escaneo automáticamente solo al abrir la venta
+        self.btn_escanear.setChecked(True)
+        self.toggle_escaneo()
+
+    def toggle_escaneo(self):
+        if self.btn_escanear.isChecked():
+            self.btn_escanear.setText("⏹️ Detener escaneo")
+            self.camara_loop = CamaraLoopThread()
+            self.camara_loop.codigo_leido.connect(self.codigo_detectado)
+            self.camara_loop.frame_listo.connect(self.mostrar_frame_camara)
+            self.camara_loop.start()
+            self.lbl_preview.setText("")  # Limpia el texto
+            # self.lbl_preview.setPixmap(QPixmap())  # Limpia cualquier imagen previa
+        else:
+            self.detener_escaneo()
+
+    def codigo_detectado(self, codigo: str):
+        # Desactivar escaneo temporalmente
+        self.btn_escanear.setChecked(False)
+        self.toggle_escaneo()  # Detiene la cámara
+
+        sonido = QSoundEffect()
+        sonido.setSource(QUrl.fromLocalFile("../sonidos/beep.mp3"))
+        sonido.setVolume(0.4)
+        sonido.play()
         self.agregar_por_codigo(codigo)
-        self.iniciar_escaneo()  # ⚠️ recursivo simple; puede reemplazarse por loop o hilo
 
-    def iniciar_escaneo_manual(self):
-        if hasattr(self, "camara_thread") and self.camara_thread.isRunning():
-            return  # Evitamos hilos duplicados
+        # Reactivar escaneo inmediatamente
+        self.btn_escanear.setChecked(True)
+        self.toggle_escaneo()
 
-        self.camara_thread = CamaraThread()
-        self.camara_thread.codigo_detectado.connect(self.agregar_por_codigo)
-        self.camara_thread.finished.connect(self.liberar_thread)
-        self.camara_thread.start()
-
-        self.btn_escanear.setEnabled(False)
-
-    def liberar_thread(self):
-        self.btn_escanear.setEnabled(True)
-        del self.camara_thread  # Limpieza opcional
-
-
-    def agregar_por_codigo(self, codigo: str):
+    def agregar_por_codigo(self, codigo: str, cantidad: int = 1, interactivo: bool = False) -> bool:
         p = productos.obtener_producto_por_codigo(codigo)
         if not p:
-            return
+            return False
 
+        # Si interactivo → preguntar por la cantidad
+        if interactivo:
+            cantidad_ingresada, ok = QInputDialog.getInt(
+                self,
+                "Cantidad",
+                f"Cantidad de unidades de '{p['descripcion']}' a agregar:",
+                1,            # valor predeterminado
+                1,            # mínimo
+                p["stock"],   # máximo
+            )
+            if not ok:
+                return True  # Cancela el ingreso, no es error
+            cantidad = cantidad_ingresada
+
+        if cantidad > p["stock"]:
+            QMessageBox.warning(
+                self, "Stock insuficiente",
+                f"Stock disponible: {p['stock']}.\nIntentaste agregar {cantidad} unidad(es)."
+            )
+            return True
+            
         # Revisar si ya está en el carrito
         for item in self.carrito:
             if item["codigo"] == codigo:
-                if item["cantidad"] >= p["stock"]:
+                total_cantidad = item["cantidad"] + cantidad
+                if total_cantidad > p["stock"]:
                     QMessageBox.warning(
                         self, "Stock insuficiente",
-                        f"No se pueden agregar más unidades.\nStock disponible: {p['stock']}."
+                        f"Ya tenés {item['cantidad']} en el carrito.\nStock disponible: {p['stock']}."
                     )
-                    return
-                item["cantidad"] += 1
+                    return True
+                item["cantidad"] = total_cantidad
                 self.refrescar_tabla()
-                return
+                return True
 
-        # Nuevo ítem al carrito
-        if p["stock"] < 1:
-            QMessageBox.warning(self, "Sin stock", "Este producto no tiene stock disponible.")
-            return
-
-        self.carrito.append({
-            "codigo": p["codigo_barra"],
+        # Nuevo producto
+        nuevo = {
             "nombre": p["nombre"],
-            "cantidad": 1,
-            "precio_unitario": p["precio_venta"]
-        })
+            "codigo": p["codigo_barra"],
+            "descripcion": p["descripcion"],
+            "precio_unitario": p["precio_venta"],
+            "cantidad": cantidad,
+            "stock": p["stock"]
+        }
+        self.carrito.append(nuevo)
         self.refrescar_tabla()
-
+        return True
 
     def refrescar_tabla(self):
         self.tabla.setRowCount(len(self.carrito))
@@ -147,19 +184,26 @@ class IniciarVentaDialog(QDialog):
             self.tabla.setItem(i, 3, QTableWidgetItem(f"${subtotal:.2f}"))
 
         self.lbl_total.setText(f"Total: ${total:.2f}")
-    
+
     def ingreso_manual(self):
         codigo, ok = QInputDialog.getText(self, "Ingreso manual", "📦 Ingresá el código de barras:")
-        if not ok or not codigo.strip():
+        codigo = codigo.strip()
+
+        if not ok or not codigo:
             return
 
-        self.agregar_por_codigo(codigo.strip())
+        # Si el código tiene 13 dígitos y todos son numéricos
+        if len(codigo) == 13 and codigo.isdigit():
+            codigo = codigo[:12]  # Eliminar dígito de control
+
+        if not self.agregar_por_codigo(codigo, interactivo=True):
+            QMessageBox.warning(self, "Código inválido", f"No se encontró el producto con código: {codigo}")
+
 
     def buscar_producto(self):
         buscador = BuscarProductoDialog(modo="seleccionar")
         buscador.exec()
         codigo = buscador.obtener_codigo_seleccionado()
-        
         if codigo:
             self.agregar_por_codigo(codigo)
 
@@ -191,7 +235,7 @@ class IniciarVentaDialog(QDialog):
             f"{nombre}\nStock disponible: {stock_disponible}\nCantidad actual: {cantidad_actual}\nNueva cantidad:",
             value=cantidad_actual,
             min=1,
-            max=stock_disponible  # ✅ Limita al stock real
+            max=stock_disponible
         )
 
         if ok:
@@ -229,7 +273,7 @@ class IniciarVentaDialog(QDialog):
             QMessageBox.Yes | QMessageBox.No
         )
         if confirm == QMessageBox.Yes:
-            self.reject()  # Cierra el diálogo sin marcarlo como aceptado
+            self.reject()
 
     def confirmar_venta(self):
         if not self.carrito:
@@ -282,24 +326,34 @@ class IniciarVentaDialog(QDialog):
         else:
             QMessageBox.critical(self, "Error", "❌ No se pudo registrar la venta.")
 
-    def toggle_escaneo(self):
-        if self.btn_escanear.isChecked():
-            self.btn_escanear.setText("⏹️ Detener escaneo")
-            from modulos.camara_thread import CamaraLoopThread
-            self.camara_loop = CamaraLoopThread()
-            self.camara_loop.codigo_leido.connect(self.codigo_detectado)
-            self.camara_loop.start()
+    def mostrar_frame_camara(self, qimage):
+        pixmap = QPixmap.fromImage(qimage)
+        self.lbl_preview.setPixmap(pixmap.scaled(
+            self.lbl_preview.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+        ))
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape and self.btn_escanear.isChecked():
+            self.detener_escaneo()
         else:
-            self.btn_escanear.setText("📷 Iniciar escaneo")
-            if hasattr(self, "camara_loop"):
-                self.camara_loop.detener()
-                self.camara_loop.wait()
+            super().keyPressEvent(event)
 
-    def codigo_detectado(self, codigo: str):
 
-        sonido = QSoundEffect()
-        sonido.setSource(QUrl.fromLocalFile("sonidos/beep.mp3"))
-        sonido.setVolume(0.4)
-        sonido.play()
+    def detener_escaneo(self):
+        self.btn_escanear.setChecked(False)
+        self.btn_escanear.setText("📷 Iniciar escaneo")
 
-        self.agregar_por_codigo(codigo)
+        if self.camara_loop:
+            try:
+                self.camara_loop.frame_listo.disconnect(self.mostrar_frame_camara)
+            except TypeError:
+                pass  # ya estaba desconectado
+
+            self.camara_loop.detener()
+            self.camara_loop.wait()
+            self.camara_loop = None
+
+        self.lbl_preview.setPixmap(QPixmap())  # Limpia imagen congelada
+        self.lbl_preview.setText("Cámara desactivada")
+        self.lbl_preview.setAlignment(Qt.AlignCenter)
+

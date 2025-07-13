@@ -3,6 +3,7 @@ from modulos.camara import escanear_codigo_opencv
 from modulos.camara import leer_codigo_desde_frame
 import cv2
 from PySide6.QtCore import QElapsedTimer
+from PySide6.QtGui import QImage
 
 
 class CamaraThread(QThread):
@@ -16,6 +17,7 @@ class CamaraThread(QThread):
 
 class CamaraLoopThread(QThread):
     codigo_leido = Signal(str)
+    frame_listo = Signal(QImage)  # <--- Agrega esta línea
 
     def __init__(self):
         super().__init__()
@@ -39,6 +41,16 @@ class CamaraLoopThread(QThread):
             if not ret:
                 continue
 
+            # Dibuja la instrucción sobre el frame
+            cv2.putText(frame, "ESC = cancelar escaneo", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+
+            # Emitir frame para preview en Qt
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = rgb_frame.shape
+            bytes_per_line = ch * w
+            qimg = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            self.frame_listo.emit(qimg)
+
             codigo = leer_codigo_desde_frame(frame)
 
             if codigo and codigo != self._ultimo_codigo:
@@ -49,10 +61,7 @@ class CamaraLoopThread(QThread):
                     self._ultimo_codigo = codigo
                     self._cooldown.restart()
 
-            cv2.putText(frame, "ESC = cancelar escaneo", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-            cv2.imshow("📷 Escaneo continuo", frame)
-            if cv2.waitKey(1) & 0xFF == 27:
-                break
+           
 
         cap.release()
-        cv2.destroyAllWindows()
+        # cv2.destroyAllWindows()
