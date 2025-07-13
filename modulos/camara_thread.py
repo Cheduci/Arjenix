@@ -53,13 +53,14 @@ class CamaraLoopThread(QThread):
 
             codigo = leer_codigo_desde_frame(frame)
 
-            if codigo and codigo != self._ultimo_codigo:
-                if self._cooldown.elapsed() > 2000:  # mínimo 2s entre lecturas
-                    if len(codigo) == 13:
-                        codigo = codigo[:12]
-                    self.codigo_leido.emit(codigo)
-                    self._ultimo_codigo = codigo
-                    self._cooldown.restart()
+            if codigo:
+                if len(codigo) == 13 and codigo.isdigit():
+                    codigo = codigo[:12]
+                if codigo != self._ultimo_codigo:
+                    if self._cooldown.elapsed() > 1000:
+                        self.codigo_leido.emit(codigo)
+                        self._ultimo_codigo = codigo
+                        self._cooldown.restart()
 
            
 

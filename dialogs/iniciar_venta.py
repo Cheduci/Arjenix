@@ -6,9 +6,10 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtMultimedia import QSoundEffect
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import QUrl, QTimer, Qt
+from PySide6.QtCore import QUrl, Qt
 from modulos.camara_thread import CamaraLoopThread
-from core import productos, ventas
+from core import productos
+from pathlib import Path
 
 
 
@@ -20,6 +21,9 @@ class IniciarVentaDialog(QDialog):
         self.setMinimumSize(960, 600)
         self.carrito = []
         self.camara_loop = None  # Hilo de cámara
+        self.beep = QSoundEffect()
+        self.beep.setSource(QUrl.fromLocalFile(Path("sonidos/beep.wav")))
+        self.beep.setVolume(0.9)
 
         self.setup_ui()
 
@@ -107,11 +111,10 @@ class IniciarVentaDialog(QDialog):
         self.btn_escanear.setChecked(False)
         self.toggle_escaneo()  # Detiene la cámara
 
-        sonido = QSoundEffect()
-        sonido.setSource(QUrl.fromLocalFile("../sonidos/beep.mp3"))
-        sonido.setVolume(0.4)
-        sonido.play()
         self.agregar_por_codigo(codigo)
+
+        # Reproducir sonido de beep
+        self.beep.play()
 
         # Reactivar escaneo inmediatamente
         self.btn_escanear.setChecked(True)
