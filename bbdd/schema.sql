@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS ventas (
     id SERIAL PRIMARY KEY,
     fecha_hora TIMESTAMP NOT NULL,
     total NUMERIC(10, 2) NOT NULL,
-    metodo_pago TEXT  -- Por ahora texto libre; luego puede ser FK
+    metodo_pago TEXT,  -- Por ahora texto libre; luego puede ser FK
+    usuario TEXT NOT NULL DEFAULT 'sistema'
 );
 
 -- Detalle por producto vendido en cada venta
@@ -34,7 +35,8 @@ CREATE TABLE IF NOT EXISTS detalle_ventas (
     venta_id INTEGER NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
     producto_id INTEGER NOT NULL REFERENCES productos(id),
     cantidad INTEGER NOT NULL,
-    precio_unitario NUMERIC(10, 2) NOT NULL
+    precio_unitario NUMERIC(10, 2) NOT NULL,
+    precio_compra NUMERIC(10, 2)
 );
 
 -- Índice para consultas rápidas por fecha

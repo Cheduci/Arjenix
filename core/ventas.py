@@ -1,17 +1,17 @@
 from bbdd.db_config import conectar_db
 from datetime import datetime
 
-def registrar_venta(usuario: str, productos: list[dict], metodo_pago: str) -> bool:
+def registrar_venta(sesion, productos: list[dict], metodo_pago: str) -> bool:
     try:
         conn = conectar_db()
         cur = conn.cursor()
-
+        usuario = sesion["username"]
         total = sum(p["cantidad"] * p["precio_unitario"] for p in productos)
 
         # Insertar encabezado
         cur.execute(
-            "INSERT INTO ventas (fecha_hora, total, metodo_pago) VALUES (%s, %s, %s) RETURNING id",
-            (datetime.now(), total, metodo_pago)
+            "INSERT INTO ventas (fecha_hora, total, metodo_pago, usuario) VALUES (%s, %s, %s, %s) RETURNING id",
+            (datetime.now(), total, metodo_pago, usuario)
         )
         venta_id = cur.fetchone()[0]
 
@@ -23,12 +23,13 @@ def registrar_venta(usuario: str, productos: list[dict], metodo_pago: str) -> bo
                 raise Exception(f"Producto no encontrado: {p['codigo']}")
 
             prod_id = fila[0]
+            precio_compra = p.get("precio_compra")
 
             # Insertar detalle
             cur.execute("""
-                INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario)
-                VALUES (%s, %s, %s, %s)
-            """, (venta_id, prod_id, p["cantidad"], p["precio_unitario"]))
+                INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, precio_compra)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (venta_id, prod_id, p["cantidad"], p["precio_unitario"], precio_compra))
 
             # Actualizar stock
             cur.execute("""

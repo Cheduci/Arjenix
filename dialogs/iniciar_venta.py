@@ -11,6 +11,7 @@ from modulos.camara_thread import CamaraLoopThread
 from core import productos
 from pathlib import Path
 from helpers.dialogos import solicitar_cantidad
+from core.ventas import registrar_venta
 
 
 
@@ -87,6 +88,11 @@ class IniciarVentaDialog(QDialog):
         btn_cancelar.clicked.connect(self.cancelar_venta)
         acciones.addWidget(btn_cancelar)
 
+        self.btn_completar = QPushButton("💰 Completar venta")
+        self.btn_completar.clicked.connect(self.confirmar_venta)
+        self.btn_completar.setEnabled(False)
+        acciones.addWidget(self.btn_completar)
+
         wrapper = QWidget()
         wrapper.setLayout(acciones)
         main_layout.addWidget(wrapper, 1)
@@ -110,14 +116,13 @@ class IniciarVentaDialog(QDialog):
     def codigo_detectado(self, codigo: str):
         # Desactivar escaneo temporalmente
 
-        print("código detectado:",codigo)
         resultado = self.agregar_por_codigo(codigo)
-        print("agregar por código:", resultado)
-        
+
         if resultado:
             self.camara_loop._pausado = True
             # Reproducir sonido de beep
             self.beep.play()
+            # self.actualizar_estado_completar()
 
             # Reactivar escaneo inmediatamente
             QTimer.singleShot(1000, lambda: setattr(self.camara_loop, "_pausado", False))
@@ -156,6 +161,7 @@ class IniciarVentaDialog(QDialog):
                     )
                     return True
                 item["cantidad"] = total_cantidad
+                # self.actualizar_estado_completar()
                 self.refrescar_tabla()
                 return True
 
@@ -166,7 +172,8 @@ class IniciarVentaDialog(QDialog):
             "descripcion": p["descripcion"],
             "precio_unitario": p["precio_venta"],
             "cantidad": cantidad,
-            "stock": p["stock"]
+            "stock": p["stock"],
+            "precio_compra": p["precio_compra"]
         }
         self.carrito.append(nuevo)
         self.refrescar_tabla()
@@ -186,6 +193,7 @@ class IniciarVentaDialog(QDialog):
             self.tabla.setItem(i, 3, QTableWidgetItem(f"${subtotal:.2f}"))
 
         self.lbl_total.setText(f"Total: ${total:.2f}")
+        self.actualizar_estado_completar()
 
     def ingreso_manual(self):
         codigo, ok = QInputDialog.getText(self, "Ingreso manual", "📦 Ingresá el código de barras:")
@@ -212,6 +220,7 @@ class IniciarVentaDialog(QDialog):
                 else:
                     codigo, cantidad = resultado, 1  # fallback por compatibilidad
                 self.agregar_por_codigo(codigo, cantidad)
+                # self.actualizar_estado_completar()
 
     def modificar_item(self):
         fila = self.tabla.currentRow()
@@ -239,14 +248,15 @@ class IniciarVentaDialog(QDialog):
             self,
             "Modificar cantidad",
             f"{nombre}\nStock disponible: {stock_disponible}\nCantidad actual: {cantidad_actual}\nNueva cantidad:",
-            value=cantidad_actual,
-            min=1,
-            max=stock_disponible
+            cantidad_actual,      # valor predeterminado
+            1,                    # mínimo
+            stock_disponible      # máximo
         )
 
         if ok:
             item["cantidad"] = nueva_cant
             self.refrescar_tabla()
+            # self.actualizar_estado_completar()
 
     def eliminar_item(self):
         fila = self.tabla.currentRow()
@@ -266,6 +276,7 @@ class IniciarVentaDialog(QDialog):
 
         if confirm == QMessageBox.Yes:
             self.carrito.pop(fila)
+            # self.actualizar_estado_completar()
             self.refrescar_tabla()
 
     def cancelar_venta(self):
@@ -279,6 +290,7 @@ class IniciarVentaDialog(QDialog):
             QMessageBox.Yes | QMessageBox.No
         )
         if confirm == QMessageBox.Yes:
+            self.actualizar_estado_completar()
             self.reject()
 
     def confirmar_venta(self):
@@ -286,6 +298,7 @@ class IniciarVentaDialog(QDialog):
             QMessageBox.warning(self, "Carrito vacío", "⚠️ No hay productos en la venta.")
             return
 
+        
         # 🚨 Verificación previa de stock real por cada producto
         for item in self.carrito:
             producto = productos.obtener_producto_por_codigo(item["codigo"])
@@ -322,9 +335,7 @@ class IniciarVentaDialog(QDialog):
         if not ok:
             return
 
-        # 🧾 Registrar venta en base
-        from core.ventas import registrar_venta
-        exito = registrar_venta(self.sesion["usuario"], self.carrito, metodo)
+        exito = registrar_venta(self.sesion, self.carrito, metodo)
 
         if exito:
             QMessageBox.information(self, "Éxito", "✅ Venta registrada correctamente.")
@@ -363,3 +374,6 @@ class IniciarVentaDialog(QDialog):
         self.lbl_preview.setText("Cámara desactivada")
         self.lbl_preview.setAlignment(Qt.AlignCenter)
 
+    
+    def actualizar_estado_completar(self):
+        self.btn_completar.setEnabled(bool(self.carrito))

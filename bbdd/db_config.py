@@ -3,6 +3,7 @@ import psycopg
 from psycopg import sql
 from psycopg import OperationalError
 import os
+import warnings
 
 DB_NAME = "arjenix"
 DB_USER = "postgres"
@@ -35,28 +36,17 @@ def crear_base_de_datos():
     conn.close()
 
 def ejecutar_schema_si_necesario(cur):
-    # Verificar si la tabla 'usuarios' existe
-    cur.execute("""
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' AND table_name = 'usuarios'
-        );
-    """)
-    existe = cur.fetchone()[0]
+    if not os.path.isfile(SCHEMA_PATH):
+        warnings.warn(f"No se encontró el archivo '{SCHEMA_PATH}'", stacklevel=2)
 
-    if not existe:
-        print("📦 Ejecutando schema.sql para crear las tablas...")
-        if not os.path.isfile(SCHEMA_PATH):
-            print(f"❌ No se encontró el archivo '{SCHEMA_PATH}'")
-            return
+        return
 
-        with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
-            schema_sql = f.read()
-            cur.execute(schema_sql)
-            cur.connection.commit()
-            print("✅ Tablas creadas correctamente.")
-    else:
-        print("✔️ Tablas ya existentes. No se ejecutó schema.sql.")
+    with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
+        schema_sql = f.read()
+        cur.execute(schema_sql)
+        cur.connection.commit()
+        print("✅ Tablas creadas correctamente.")
+
 
 def conectar_db():
     try:
