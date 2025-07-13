@@ -18,12 +18,15 @@ class CamaraThread(QThread):
 class CamaraLoopThread(QThread):
     codigo_leido = Signal(str)
     frame_listo = Signal(QImage)  # <--- Agrega esta línea
+    
 
     def __init__(self):
         super().__init__()
         self._activo = True
         self._ultimo_codigo = ""
         self._cooldown = QElapsedTimer()
+        self._pausado = False
+        
 
     def detener(self):
         self._activo = False
@@ -37,10 +40,13 @@ class CamaraLoopThread(QThread):
         self._cooldown.start()
 
         while self._activo:
+            if self._pausado:
+                QThread.msleep(50)
+                continue
             ret, frame = cap.read()
             if not ret:
                 continue
-
+            
             # Dibuja la instrucción sobre el frame
             cv2.putText(frame, "ESC = cancelar escaneo", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
@@ -57,7 +63,7 @@ class CamaraLoopThread(QThread):
                 if len(codigo) == 13 and codigo.isdigit():
                     codigo = codigo[:12]
                 if codigo != self._ultimo_codigo:
-                    if self._cooldown.elapsed() > 1000:
+                    if self._cooldown.elapsed() > 200: # cooldown timer de 1s
                         self.codigo_leido.emit(codigo)
                         self._ultimo_codigo = codigo
                         self._cooldown.restart()

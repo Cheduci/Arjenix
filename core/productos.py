@@ -142,6 +142,8 @@ def obtener_producto_por_codigo(codigo: str) -> dict | None:
     except Exception as e:
         print(f"Error al obtener producto: {e}")
         return None
+    finally:
+        cur.close()
     
 def obtener_basico_por_codigo(codigo: str) -> dict | None:
     """

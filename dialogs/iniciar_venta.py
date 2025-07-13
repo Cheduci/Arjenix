@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtMultimedia import QSoundEffect
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import QUrl, Qt
+from PySide6.QtCore import QUrl, Qt, QTimer
 from modulos.camara_thread import CamaraLoopThread
 from core import productos
 from pathlib import Path
@@ -109,17 +109,18 @@ class IniciarVentaDialog(QDialog):
 
     def codigo_detectado(self, codigo: str):
         # Desactivar escaneo temporalmente
-        self.btn_escanear.setChecked(False)
-        self.toggle_escaneo()  # Detiene la cámara
 
-        self.agregar_por_codigo(codigo)
+        print("código detectado:",codigo)
+        resultado = self.agregar_por_codigo(codigo)
+        print("agregar por código:", resultado)
+        
+        if resultado:
+            self.camara_loop._pausado = True
+            # Reproducir sonido de beep
+            self.beep.play()
 
-        # Reproducir sonido de beep
-        self.beep.play()
-
-        # Reactivar escaneo inmediatamente
-        self.btn_escanear.setChecked(True)
-        self.toggle_escaneo()
+            # Reactivar escaneo inmediatamente
+            QTimer.singleShot(1000, lambda: setattr(self.camara_loop, "_pausado", False))
 
     def agregar_por_codigo(self, codigo: str, cantidad: int = 1, interactivo: bool = False) -> bool:
         p = productos.obtener_producto_por_codigo(codigo)
