@@ -3,11 +3,12 @@ from dialogs.buscar_producto import BuscarProductoDialog
 from core import productos
 
 class SeleccionarProductosDialog(QDialog):
-    def __init__(self, sesion, parent=None):
+    def __init__(self, sesion, modo="seleccionar", parent=None):
         super().__init__(parent)
         self.setWindowTitle("📦 Seleccionar productos")
         self.setMinimumSize(700, 480)
         self.sesion = sesion
+        self.modo = modo
         self.productos_seleccionados = []  # lista de tuplas (codigo, nombre)
 
         self.setup_ui()
@@ -45,7 +46,7 @@ class SeleccionarProductosDialog(QDialog):
         self.setLayout(layout)
 
     def agregar_producto(self):
-        dlg = BuscarProductoDialog(self.sesion, modo="seleccionar", parent=self)
+        dlg = BuscarProductoDialog(self.sesion, modo=self.modo, parent=self)
         if dlg.exec() == QDialog.Accepted:
             codigo, _ = dlg.obtener_codigo_seleccionado()
             # Podés usar productos.obtener_por_codigo() para traer el nombre

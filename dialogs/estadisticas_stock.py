@@ -49,7 +49,8 @@ class EstadisticasStockDialog(QDialog):
             "Frecuencia promedio por producto",
             "Reposiciones vs Ventas",
             "Actividad por usuario",
-            "Alertas de reposición"
+            "Alertas de reposición",
+            "Movimientos detallados"
         ])
         filtros_layout.addWidget(QLabel("Análisis:"))
         filtros_layout.addWidget(self.tipo_selector)
@@ -88,7 +89,7 @@ class EstadisticasStockDialog(QDialog):
         self.setLayout(layout)
 
     def abrir_selector_productos(self):
-        dlg = SeleccionarProductosDialog(self.sesion)
+        dlg = SeleccionarProductosDialog(self.sesion, modo="estadistica")
         if dlg.exec():
             self.codigos_seleccionados = dlg.obtener_codigos_seleccionados()
             nombres = dlg.obtener_nombres_seleccionados()
@@ -110,7 +111,10 @@ class EstadisticasStockDialog(QDialog):
             datos = self.actividad_por_usuario()
         elif tipo == "Alertas de reposición":
             datos = self.alertas_reposicion()
-        
+        elif tipo == "Movimientos detallados":
+            self.tabla.setRowCount(0)
+            self.tabla.setColumnCount(1)
+            self.tabla.setHorizontalHeaderLabels(["Este análisis se exporta directamente en CSV"])
         else:
             datos = []
 
@@ -156,6 +160,13 @@ class EstadisticasStockDialog(QDialog):
             datos = self.actividad_por_usuario()
         elif tipo == "Alertas de reposición":
             datos = self.alertas_reposicion()
+        elif tipo == "Movimientos detallados":
+            datos = self.movimientos_exportables(
+                self.fecha_inicio.date().toString("yyyy-MM-dd"),
+                self.fecha_fin.date().toString("yyyy-MM-dd"),
+                self.codigos_seleccionados,
+                tipo="Ambos"
+            )
         else:
             datos = []
 
@@ -249,3 +260,53 @@ class EstadisticasStockDialog(QDialog):
             {"Producto": "Leche", "Frecuencia promedio (días)": 2.1, "Alerta": "🟢 Frecuencia normal"},
             {"Producto": "Fideos", "Frecuencia promedio (días)": 6.3, "Alerta": "⚪ Sin anomalías"}
         ]
+
+    def movimientos_exportables(self, fecha_inicio, fecha_fin, codigos, tipo="Ambos"):
+    # Datos ficticios para testear exportación
+        return [
+            {
+                "Producto": "Leche",
+                "Fecha": "2025-07-10",
+                "Hora": "14:22",
+                "Tipo de movimiento": "Venta",
+                "Cantidad": 2,
+                "Precio de compra": 250.00,
+                "Precio de venta": 320.00,
+                "Usuario": "florencia",
+                "Stock actual": 18
+            },
+            {
+                "Producto": "Leche",
+                "Fecha": "2025-07-11",
+                "Hora": "09:15",
+                "Tipo de movimiento": "Reposición",
+                "Cantidad": 5,
+                "Precio de compra": 245.00,
+                "Precio de venta": "",
+                "Usuario": "carlos",
+                "Stock actual": 23
+            },
+            {
+                "Producto": "Yerba mate",
+                "Fecha": "2025-07-12",
+                "Hora": "10:30",
+                "Tipo de movimiento": "Venta",
+                "Cantidad": 1,
+                "Precio de compra": 390.00,
+                "Precio de venta": 470.00,
+                "Usuario": "lucas",
+                "Stock actual": 12
+            },
+            {
+                "Producto": "Yerba mate",
+                "Fecha": "2025-07-13",
+                "Hora": "17:00",
+                "Tipo de movimiento": "Reposición",
+                "Cantidad": 6,
+                "Precio de compra": 395.00,
+                "Precio de venta": "",
+                "Usuario": "sistema",
+                "Stock actual": 18
+            }
+        ]
+

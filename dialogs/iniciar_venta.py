@@ -30,8 +30,10 @@ class IniciarVentaDialog(QDialog):
         self.setup_ui()
 
     def closeEvent(self, event):
-        if self.camara_loop and self.camara_loop.isRunning():
-            self.detener_escaneo()  # Cerrás hilo y limpiás interfaz
+        if self.camara_loop:
+            self.camara_loop.detener()
+            if self.camara_loop.isRunning():
+                self.camara_loop.wait()
         event.accept()          # Permitís el cierre de la ventana
 
     def setup_ui(self):

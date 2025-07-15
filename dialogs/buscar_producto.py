@@ -13,7 +13,7 @@ class BuscarProductoDialog(QDialog):
         self.setWindowTitle("🔍 Buscar producto")
         self.setMinimumSize(720, 500)
         self.sesion = sesion
-        self.modo = modo # "ver" o "seleccionar"
+        self.modo = modo # "ver" o "seleccionar" o "estadistica"
         self.codigo_seleccionado = None
 
         self.orden_actual = None
@@ -108,16 +108,20 @@ class BuscarProductoDialog(QDialog):
         nombre = self.tabla.item(fila, 0).text()
         stock = int(self.tabla.item(fila, 3).text())
 
-        cantidad = solicitar_cantidad(self, descripcion=nombre, stock=stock)
-        if cantidad is None:
-            return  # Usuario canceló
 
         if self.modo == "seleccionar":
+            cantidad = solicitar_cantidad(self, descripcion=nombre, stock=stock)
+            if cantidad is None:
+                return  # Usuario canceló
             self.codigo_seleccionado = (codigo, cantidad)
             self.accept()
         elif self.modo == "ver":
             dlg = FichaProductoDialog(self.sesion, codigo)
             dlg.exec()
+        elif self.modo == "estadistica":
+            self.codigo_seleccionado = (codigo, nombre)
+            self.accept()
+
 
     def obtener_codigo_seleccionado(self):
         return self.codigo_seleccionado
