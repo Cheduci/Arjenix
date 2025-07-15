@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QComboBox, QSpinBox, QTableWidget, QTableWidgetItem
 )
+from PySide6.QtCore import Qt
 from core import productos  # Debe exponer una función para búsqueda filtrada
 from dialogs.ficha_producto import FichaProductoDialog
 from helpers.dialogos import solicitar_cantidad
@@ -14,6 +15,10 @@ class BuscarProductoDialog(QDialog):
         self.sesion = sesion
         self.modo = modo # "ver" o "seleccionar"
         self.codigo_seleccionado = None
+
+        self.orden_actual = None
+        self.sentido_ascendente = True
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -49,11 +54,13 @@ class BuscarProductoDialog(QDialog):
 
         # 📋 Tabla de resultados
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(5)
-        self.tabla.setHorizontalHeaderLabels(["Nombre", "Código", "Categoría", "Stock", "Precio"])
+        self.tabla.setColumnCount(6)
+        self.tabla.setHorizontalHeaderLabels(["Nombre", "Código", "Categoría", "Stock", "Precio venta", "Precio compra"])
         self.tabla.cellDoubleClicked.connect(self.aceptar_producto)
         self.tabla.itemSelectionChanged.connect(self.verificar_seleccion)
 
+        # 🎯 Ordenamiento por columna
+        self.tabla.horizontalHeader().sectionClicked.connect(self.ordenar_por_columna)
         layout.addWidget(self.tabla)
 
         self.setLayout(layout)
@@ -75,16 +82,26 @@ class BuscarProductoDialog(QDialog):
             codigo = p.get("codigo_barra") or "-"
             categoria = p.get("categoria") or "Sin categoría"
             stock = p.get("stock_actual") if p.get("stock_actual") is not None else 0
-            precio = p.get("precio_venta")
-            precio_str = f"${precio:.2f}" if precio is not None else "—"
+            precio_venta = p.get("precio_venta")
+            preciov_str = f"${precio_venta:.2f}" if precio_venta is not None else "—"
+            precio_compra = p.get("precio_compra")
+            precioc_str = f"${precio_compra:.2f}" if precio_compra is not None else "—"
 
             self.tabla.setItem(i, 0, QTableWidgetItem(nombre))
             self.tabla.setItem(i, 1, QTableWidgetItem(codigo))
             self.tabla.setItem(i, 2, QTableWidgetItem(categoria))
             self.tabla.setItem(i, 3, QTableWidgetItem(str(stock)))
-            self.tabla.setItem(i, 4, QTableWidgetItem(precio_str))
+            self.tabla.setItem(i, 4, QTableWidgetItem(preciov_str))
+            self.tabla.setItem(i, 5, QTableWidgetItem(precioc_str))
 
+    def ordenar_por_columna(self, columna):
+        if self.orden_actual == columna:
+            self.sentido_ascendente = not self.sentido_ascendente
+        else:
+            self.orden_actual = columna
+            self.sentido_ascendente = True
 
+        self.tabla.sortItems(columna, Qt.AscendingOrder if self.sentido_ascendente else Qt.DescendingOrder)
     
     def aceptar_producto(self, fila, _col):
         codigo = self.tabla.item(fila, 1).text()  # columna con código_barra

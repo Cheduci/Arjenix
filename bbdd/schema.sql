@@ -20,6 +20,20 @@ CREATE TABLE IF NOT EXISTS productos (
     estado VARCHAR(20) DEFAULT 'pendiente'
 );
 
+-- Tabla de reposiciones
+CREATE TABLE IF NOT EXISTS reposiciones (
+    id SERIAL PRIMARY KEY,
+    fecha_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    motivo TEXT
+);
+
+-- Índice para optimizar consultas por producto y rango de fechas
+CREATE INDEX IF NOT EXISTS idx_reposiciones_producto_fecha
+    ON reposiciones(producto_id, fecha_hora);
+
 -- Tabla principal de ventas
 CREATE TABLE IF NOT EXISTS ventas (
     id SERIAL PRIMARY KEY,
