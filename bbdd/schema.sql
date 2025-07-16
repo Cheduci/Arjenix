@@ -1,4 +1,4 @@
--- Tabla de categorías de productos
+-- Tabla de categorías
 CREATE TABLE IF NOT EXISTS categorias (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(50) NOT NULL UNIQUE

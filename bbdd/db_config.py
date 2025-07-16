@@ -44,14 +44,24 @@ def ejecutar_schema(cur):
 
         for stmt in schema_sql.split(";"):
             stmt = stmt.strip()
+            if "CREATE TABLE IF NOT EXISTS" in stmt.upper():
+                tipo = "Tabla"
+                inicio = stmt.find("EXISTS") + len("EXISTS")
+                fin = stmt.find("(")
+                nombre = stmt[inicio:fin].strip()
+            elif "CREATE INDEX IF NOT EXISTS" in stmt.upper():
+                tipo = "Índice"
+                inicio = stmt.find("EXISTS") + len("EXISTS")
+                fin = stmt.find("ON")
+                nombre = stmt[inicio:fin].strip()
             try:
-                cur.execute(schema_sql)
+                cur.execute(stmt)
                 cur.connection.commit()
                 
-                print("✅ Tablas con éxito.")
             except Exception as e:
                 print(f"⚠️ Error al crear las tablas. Error: {e}")
 
+        print("✅ Tablas creada con éxito.") 
 
 def conectar_db():
     try:
