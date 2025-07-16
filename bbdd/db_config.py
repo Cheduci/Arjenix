@@ -1,9 +1,8 @@
 # db_config.py
 import psycopg
-from psycopg import sql
-from psycopg import OperationalError
+from psycopg import sql, OperationalError
+from PySide6.QtWidgets import QMessageBox
 import os
-import warnings
 
 DB_NAME = "arjenix"
 DB_USER = "postgres"
@@ -35,23 +34,28 @@ def crear_base_de_datos():
     cur.close()
     conn.close()
 
-def ejecutar_schema_si_necesario(cur):
+def ejecutar_schema(cur):
     if not os.path.isfile(SCHEMA_PATH):
-        warnings.warn(f"No se encontró el archivo '{SCHEMA_PATH}'", stacklevel=2)
-
+        QMessageBox.warning(None, "Advertencia", f"No se encontró el archivo '{SCHEMA_PATH}'")
         return
 
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         schema_sql = f.read()
-        cur.execute(schema_sql)
-        cur.connection.commit()
-        print("✅ Tablas creadas correctamente.")
+
+        for stmt in schema_sql.split(";"):
+            stmt = stmt.strip()
+            try:
+                cur.execute(schema_sql)
+                cur.connection.commit()
+                
+                print("✅ Tablas con éxito.")
+            except Exception as e:
+                print(f"⚠️ Error al crear las tablas. Error: {e}")
 
 
 def conectar_db():
     try:
-        # Solo crear la base si no existe, pero NO ejecutar el schema aquí
-        crear_base_de_datos()
+        crear_base_de_datos()  # Solo crea si no existe
         conn = psycopg.connect(
             dbname=DB_NAME,
             user=DB_USER,
@@ -59,6 +63,8 @@ def conectar_db():
             host=DB_HOST,
             port=DB_PORT
         )
+        cur = conn.cursor()
+        ejecutar_schema(cur)  # SIEMPRE ejecuta el schema
         return conn
     except OperationalError as e:
         raise ConnectionError(f"No se pudo conectar a la base de datos:\n{e}")
