@@ -90,9 +90,3 @@ class LoginWindow(QDialog):
     def obtener_datos_sesion(self) -> dict:
         return self.sesion if hasattr(self, "sesion") else {}
 
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    ventana = LoginWindow()
-    ventana.show()
-    sys.exit(app.exec())

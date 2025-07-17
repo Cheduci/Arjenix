@@ -1,20 +1,20 @@
 from bbdd.db_config import conectar_db
 from modulos.main_router import MainRouter
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox, QApplication
 from psycopg import OperationalError
 import sys
 
 def main():
+    app = QApplication(sys.argv)
     try:
         conn = conectar_db()
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM usuarios WHERE activo = TRUE;")
         tiene_usuarios = cur.fetchone()[0] > 0
 
-        if not tiene_usuarios:
-            MainRouter(arranca_con_setup=True)
-        else:
-            MainRouter()
+        router = MainRouter(arranca_con_setup=not tiene_usuarios)
+        sys.exit(app.exec())
+
     
     except ConnectionError as e:
         QMessageBox.critical(None, "Error de conexión", str(e))

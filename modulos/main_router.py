@@ -6,7 +6,6 @@ import sys
 
 class MainRouter:
     def __init__(self, arranca_con_setup=False):
-        self.app = QApplication(sys.argv)
         self.sesion = None
         
         if arranca_con_setup:
@@ -40,7 +39,6 @@ class MainRouter:
 
         self.ventana.router = self  # Para permitir que el panel llame a cerrar_sesion()
         self.ventana.show()
-        self.app.exec()
 
     def cerrar_sesion(self):
         self.ventana.close()
