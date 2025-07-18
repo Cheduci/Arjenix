@@ -11,6 +11,7 @@ from dialogs.gestionar_categorias import GestionarCategoriasDialog
 from dialogs.ranking_ventas import RankingVentasDialog
 from dialogs.iniciar_venta import IniciarVentaDialog
 from dialogs.ver_bajostock import StockBajoDialog
+from dialogs.registrar_reposicion import RegistrarReposicionDialog
 from helpers.mixin_cuenta import *
 from helpers.panel_base import *
 
@@ -104,7 +105,14 @@ class PanelRepositor(BasePanel):
         dlg.exec()
 
     def registrar_reposicion(self):
-        QMessageBox.information(self, "Reposición", "👉 Aquí se podrá seleccionar un producto y registrar reposición.")
+        dlg = RegistrarReposicionDialog(
+            sesion=self.sesion,
+            codigo_barra=producto["codigo_barra"],
+            nombre=producto["nombre"],
+            stock_actual=producto["stock_actual"]
+        )
+        dlg.exec()
+
 
     def ver_historial(self):
         QMessageBox.information(self, "Historial", "👉 Acá se mostrará el historial de reposiciones realizadas.")

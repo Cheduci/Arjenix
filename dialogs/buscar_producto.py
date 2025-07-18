@@ -115,9 +115,11 @@ class BuscarProductoDialog(QDialog):
                 return  # Usuario canceló
             self.codigo_seleccionado = (codigo, cantidad)
             self.accept()
+
         elif self.modo == "ver":
             dlg = FichaProductoDialog(self.sesion, codigo)
             dlg.exec()
+            
         elif self.modo == "estadistica":
             self.codigo_seleccionado = (codigo, nombre)
             self.accept()

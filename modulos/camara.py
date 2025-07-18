@@ -1,11 +1,12 @@
 import cv2
 import numpy as np
 from pyzbar.pyzbar import decode
+from PySide6.QtWidgets import QMessageBox
 
 def escanear_codigo_opencv():
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("❌ No se pudo acceder a la cámara.")
+        QMessageBox.warning(None, "Cámara no disponible", "No se pudo acceder a la cámara.")
         return None
 
     print("📷 Escaneando... Presione ESC para cancelar.")
@@ -15,6 +16,7 @@ def escanear_codigo_opencv():
         ret, frame = cap.read()
         if not ret:
             print("⚠️ Error al capturar imagen.")
+            # QMessageBox.
             break
 
         decoded_objs = decode(frame)
@@ -51,11 +53,12 @@ def escanear_codigo_opencv():
         if codigo_detectado:
             if len(codigo_detectado) == 13:
                 codigo_detectado = codigo_detectado[:12]
-            print(f"✅ Código detectado: {codigo_detectado}")
+            # print(f"✅ Código detectado: {codigo_detectado}")
             break
 
         if key == 27:
-            print("🚫 Escaneo cancelado.")
+            QMessageBox.information(None,"🚫 Escaneo cancelado.","Se ha cancelado el escaneo")
+            # print("🚫 Escaneo cancelado.")
             break
 
     cap.release()

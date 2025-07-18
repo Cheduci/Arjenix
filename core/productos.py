@@ -140,8 +140,7 @@ def obtener_producto_por_codigo(codigo: str) -> dict | None:
             }
         return None
     except Exception as e:
-        print(f"Error al obtener producto: {e}")
-        return None
+        raise RuntimeError(f"No se pudo obtener el producto: {e}")
     finally:
         cur.close()
     
@@ -366,7 +365,7 @@ def actualizar_foto(codigo: str, foto_bytes: bytes) -> bool:
 
 class ErrorStockBajo(Exception):
     pass
-    
+
 def obtener_productos_con_stock_bajo(self, umbral=None):
     try:
         conn = db_config.conectar_db()
@@ -404,3 +403,6 @@ def obtener_productos_con_stock_bajo(self, umbral=None):
     
     except Exception as e:
         raise ErrorStockBajo(f"No se pudo obtener productos con stock bajo: {e}")
+    
+def registrar_reposicion():
+    pass
