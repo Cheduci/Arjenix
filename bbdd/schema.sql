@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS productos (
     stock_minimo INTEGER,
     foto BYTEA,
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    estado VARCHAR(20) DEFAULT 'pendiente'
+    estado VARCHAR(20) DEFAULT 'pendiente',
+    proveedor TEXT
 );
 
 -- 👥 Personas registradas (núcleo compartido)

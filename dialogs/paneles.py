@@ -10,6 +10,7 @@ from dialogs.gestor_usuarios import GestorUsuariosDialog
 from dialogs.gestionar_categorias import GestionarCategoriasDialog
 from dialogs.ranking_ventas import RankingVentasDialog
 from dialogs.iniciar_venta import IniciarVentaDialog
+from dialogs.ver_bajostock import StockBajoDialog
 from helpers.mixin_cuenta import *
 from helpers.panel_base import *
 
@@ -75,15 +76,21 @@ class PanelRepositor(BasePanel):
         box = QGroupBox("🧾 Reposición de stock")
         inner = QVBoxLayout()
 
-        btn1 = QPushButton("➕ Alta de producto")
-        btn1.clicked.connect(self.alta_producto)
-        inner.addWidget(btn1)
+        btn_alta_producto = QPushButton("➕ Alta de producto")
+        btn_alta_producto.clicked.connect(self.alta_producto)
+        inner.addWidget(btn_alta_producto)
 
-        btn2 = QPushButton("📥 Registrar reposición")
-        inner.addWidget(btn2)
+        btn_stock_bajo = QPushButton("📉 Stock bajo")
+        btn_stock_bajo.clicked.connect(self.ver_stock_bajo)
+        inner.addWidget(btn_stock_bajo)
 
-        btn3 = QPushButton("📚 Ver historial")
-        inner.addWidget(btn3)
+        btn_registrar_reposicion = QPushButton("📥 Registrar reposición")
+        btn_registrar_reposicion.clicked.connect(self.registrar_reposicion)
+        inner.addWidget(btn_registrar_reposicion)
+
+        btn_ver_historial = QPushButton("📚 Ver historial")
+        btn_ver_historial.clicked.connect(self.ver_historial)
+        inner.addWidget(btn_ver_historial)
 
         box.setLayout(inner)
         layout.addWidget(box)
@@ -92,10 +99,9 @@ class PanelRepositor(BasePanel):
         dialogo = AltaProductoDialog(self.sesion)
         dialogo.exec()
 
-    
-
     def ver_stock_bajo(self):
-        QMessageBox.information(self, "Stock bajo", "👉 Aquí se mostrarán los productos con stock crítico.")
+        dlg = StockBajoDialog(self.sesion)
+        dlg.exec()
 
     def registrar_reposicion(self):
         QMessageBox.information(self, "Reposición", "👉 Aquí se podrá seleccionar un producto y registrar reposición.")
@@ -103,6 +109,8 @@ class PanelRepositor(BasePanel):
     def ver_historial(self):
         QMessageBox.information(self, "Historial", "👉 Acá se mostrará el historial de reposiciones realizadas.")
         
+    
+
         
 class PanelGerente(PanelRepositor, PanelVendedor):
     def __init__(self, sesion, router=None):

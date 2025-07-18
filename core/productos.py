@@ -363,3 +363,44 @@ def actualizar_foto(codigo: str, foto_bytes: bytes) -> bool:
     except Exception as e:
         print(f"Error al actualizar foto: {e}")
         return False
+
+class ErrorStockBajo(Exception):
+    pass
+    
+def obtener_productos_con_stock_bajo(self, umbral=None):
+    try:
+        conn = db_config.conectar_db()
+        cur = conn.cursor()
+        
+        # Si no se define un umbral externo, usar el stock_minimo de cada producto
+        if umbral is None:
+            cur.execute("""
+                SELECT nombre, codigo_barra, stock_minimo, stock_actual, proveedor
+                FROM productos
+                WHERE stock_minimo IS NOT NULL AND stock_actual <= stock_minimo
+                ORDER BY nombre ASC
+            """)
+        else:
+            cur.execute("""
+                SELECT nombre, codigo_barra, stock_minimo, stock_actual, proveedor
+                FROM productos
+                WHERE stock_actual <= %s
+                ORDER BY nombre ASC
+            """, (umbral,))
+        
+        resultados = cur.fetchall()
+        cur.close()
+
+        return [
+            {
+                "nombre": fila[0],
+                "codigo_barra": fila[1],
+                "stock_minimo": fila[2],
+                "stock_actual": fila[3],
+                "proveedor": fila[4] or ""
+            }
+            for fila in resultados
+        ]
+    
+    except Exception as e:
+        raise ErrorStockBajo(f"No se pudo obtener productos con stock bajo: {e}")
