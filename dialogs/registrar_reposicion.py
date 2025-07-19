@@ -5,6 +5,8 @@ from dialogs.buscar_producto import BuscarProductoDialog
 from helpers.dialogos import pedir_codigo_barras, solicitar_cantidad
 from core.productos import obtener_producto_por_codigo
 from modulos.camara import escanear_codigo_opencv
+from PySide6.QtMultimedia import QSoundEffect
+from PySide6.QtCore import QUrl
 
 class RegistrarReposicionDialog(QDialog):
     def __init__(self, sesion, codigo_barra, nombre, stock_actual, parent=None):
@@ -15,6 +17,12 @@ class RegistrarReposicionDialog(QDialog):
         self.stock_actual = stock_actual
         self.setWindowTitle("📦 Registrar reposición")
         self.setFixedSize(400, 280)
+
+        self.reposiciones_en_curso = []
+        self.beep = QSoundEffect()
+        self.beep.setSource(QUrl.fromLocalFile("sonidos/beep.wav"))
+        self.beep.setVolume(0.5)
+        
         self.setup_ui()
 
     def setup_ui(self):
@@ -78,7 +86,12 @@ class RegistrarReposicionDialog(QDialog):
 
     def abrir_buscar_producto(self):
         dlg = BuscarProductoDialog(self.sesion, modo="seleccionar",parent=self)
-        dlg.exec()
+        if dlg.exec() == QDialog.Accepted:
+            codigo, cantidad = dlg.obtener_codigo_seleccionado()
+            producto = obtener_producto_por_codigo(codigo)
+        
+        self.agregar_a_reposiciones(producto,cantidad,buscar=True)
+
 
     def abrir_ingreso_manual(self):
         try:
@@ -123,3 +136,33 @@ class RegistrarReposicionDialog(QDialog):
         else:
             QMessageBox.information(self, "Reposiciones registradas", "Todas las reposiciones fueron exitosamente registradas.")
             self.accept()
+
+    def agregar_a_reposiciones(self, producto: dict, cantidad: int = None, buscar: bool = False):
+        if buscar:
+            if cantidad is None:
+                QMessageBox.warning(self, "Cantidad faltante", "Debe especificar la cantidad.")
+                return
+        else:
+            cantidad = 1  # valor por defecto
+
+        # Verificar si ya existe en la lista
+        for item in self.reposiciones_en_curso:
+            if item["codigo_barra"] == producto["codigo_barra"]:
+                item["cantidad"] += cantidad
+                self.refrescar_tabla()
+                return
+
+        # Agregar nuevo producto
+        self.reposiciones_en_curso.append({
+            "nombre": producto["nombre"],
+            "codigo_barra": producto["codigo_barra"],
+            "cantidad": cantidad
+        })
+        self.refrescar_tabla()
+
+    def refrescar_tabla(self):
+        self.tabla.setRowCount(len(self.reposiciones_en_curso))
+        for fila, item in enumerate(self.reposiciones_en_curso):
+            self.tabla.setItem(fila, 0, QTableWidgetItem(item["nombre"]))
+            self.tabla.setItem(fila, 1, QTableWidgetItem(item["codigo_barra"]))
+            self.tabla.setItem(fila, 2, QTableWidgetItem(str(item["cantidad"])))

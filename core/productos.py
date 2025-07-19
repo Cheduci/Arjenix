@@ -404,5 +404,3 @@ def obtener_productos_con_stock_bajo(self, umbral=None):
     except Exception as e:
         raise ErrorStockBajo(f"No se pudo obtener productos con stock bajo: {e}")
     
-def registrar_reposicion():
-    pass
