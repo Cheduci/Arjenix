@@ -48,7 +48,7 @@ def modificar_stock(codigo: str, nuevo_stock: int) -> bool:
 
         cur.execute("""
             UPDATE productos
-            SET stock = %s
+            SET stock_actual = %s
             WHERE codigo_barra = %s
         """, (nuevo_stock, codigo))
 
@@ -58,6 +58,20 @@ def modificar_stock(codigo: str, nuevo_stock: int) -> bool:
     except Exception as e:
         print(f"Error al actualizar stock: {e}")
         return False
+
+def obtener_stock_actual(codigo: str) -> int:
+    try:
+        conn = db_config.conectar_db()
+        cur = conn.cursor()
+
+        cur.execute("SELECT stock_actual FROM productos WHERE codigo_barra = %s", (codigo,))
+        resultado = cur.fetchone()
+        conn.close()
+        return resultado[0] if resultado else 0
+    except Exception as e:
+        print(f"Error al consultar stock: {e}")
+        return 0
+
     
 def actualizar_precios(codigo: str, precio_compra: float, precio_venta: float) -> bool:
     try:

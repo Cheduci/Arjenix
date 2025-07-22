@@ -213,10 +213,6 @@ class FichaProductoDialog(QDialog):
         # 🔒 Permisos según rol
         rol = self.sesion["rol"]
 
-        if rol in ["dueño", "gerente", "repositor"]:
-            self.campo_stock.setEnabled(True)
-            self.acciones_layout.addWidget(self.btn_guardar_stock)
-
         if rol in ["dueño", "gerente"]:
             self.precio_compra.setEnabled(True)
             self.precio_venta.setEnabled(True)
@@ -225,6 +221,8 @@ class FichaProductoDialog(QDialog):
             self.acciones_layout.addWidget(self.btn_estado)
 
         if rol == "dueño":
+            self.campo_stock.setEnabled(True)
+            self.acciones_layout.addWidget(self.btn_guardar_stock)
             self.acciones_layout.addWidget(self.btn_eliminar)
 
     # Métodos a definir para acciones:

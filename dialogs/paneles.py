@@ -105,12 +105,7 @@ class PanelRepositor(BasePanel):
         dlg.exec()
 
     def registrar_reposicion(self):
-        dlg = RegistrarReposicionDialog(
-            sesion=self.sesion,
-            codigo_barra=producto["codigo_barra"],
-            nombre=producto["nombre"],
-            stock_actual=producto["stock_actual"]
-        )
+        dlg = RegistrarReposicionDialog(sesion=self.sesion)
         dlg.exec()
 
 

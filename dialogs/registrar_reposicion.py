@@ -1,22 +1,18 @@
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QTableWidget, QAbstractItemView, QVBoxLayout, 
-        QPushButton, QMessageBox, QInputDialog)
-from core.productos import registrar_reposicion
+        QPushButton, QMessageBox, QInputDialog, QTableWidgetItem)
 from dialogs.buscar_producto import BuscarProductoDialog
 from helpers.dialogos import pedir_codigo_barras, solicitar_cantidad
-from core.productos import obtener_producto_por_codigo
+from core.productos import obtener_producto_por_codigo, modificar_stock, obtener_stock_actual
 from modulos.camara import escanear_codigo_opencv
 from PySide6.QtMultimedia import QSoundEffect
 from PySide6.QtCore import QUrl
 
 class RegistrarReposicionDialog(QDialog):
-    def __init__(self, sesion, codigo_barra, nombre, stock_actual, parent=None):
+    def __init__(self, sesion, parent=None):
         super().__init__(parent)
         self.sesion = sesion
-        self.codigo_barra = codigo_barra
-        self.nombre_producto = nombre
-        self.stock_actual = stock_actual
         self.setWindowTitle("📦 Registrar reposición")
-        self.setFixedSize(400, 280)
+        self.setFixedSize(500, 380)
 
         self.reposiciones_en_curso = []
         self.beep = QSoundEffect()
@@ -74,7 +70,10 @@ class RegistrarReposicionDialog(QDialog):
 
     def abrir_escanear_codigo(self):
         codigo = escanear_codigo_opencv()
+        if not codigo:
+            return
 
+        producto = None
         try:
             producto = obtener_producto_por_codigo(codigo)
         except RuntimeError as err:
@@ -82,15 +81,15 @@ class RegistrarReposicionDialog(QDialog):
             return
 
         if producto:
-            self.agregar_a_reposiciones(producto)
+            self.manejar_producto_identificado(producto)
 
     def abrir_buscar_producto(self):
-        dlg = BuscarProductoDialog(self.sesion, modo="seleccionar",parent=self)
+        dlg = BuscarProductoDialog(self.sesion, modo="estadistica",parent=self)
         if dlg.exec() == QDialog.Accepted:
-            codigo, cantidad = dlg.obtener_codigo_seleccionado()
+            codigo, nombre = dlg.obtener_codigo_seleccionado()
             producto = obtener_producto_por_codigo(codigo)
-        
-        self.agregar_a_reposiciones(producto,cantidad,buscar=True)
+            if producto:
+                self.manejar_producto_identificado(producto)
 
 
     def abrir_ingreso_manual(self):
@@ -105,7 +104,7 @@ class RegistrarReposicionDialog(QDialog):
             QMessageBox.warning(self, "Producto no encontrado", f"No se encontró el código: {codigo}")
             return
 
-        self.agregar_a_reposiciones(producto)
+        self.manejar_producto_identificado(producto)
 
     def modificar_seleccionado(self):
         fila = self.tabla.currentRow()
@@ -114,55 +113,92 @@ class RegistrarReposicionDialog(QDialog):
             return
 
         actual = self.reposiciones_en_curso[fila]
-        nueva_cantidad, ok = QInputDialog.getInt(self, "Modificar cantidad", f"{actual['nombre']}", actual['cantidad'], 1, 9999)
+        nombre = actual["producto"]["nombre"]
+        cantidad_actual = actual["cantidad"]
+
+        nueva_cantidad, ok = QInputDialog.getInt(self, "Modificar cantidad", f"{nombre}", cantidad_actual, 1, 9999)
+        
         if ok:
             actual["cantidad"] = nueva_cantidad
             self.refrescar_tabla()
 
     def confirmar_todas(self):
+        if not self.reposiciones_en_curso:
+            QMessageBox.information(self, "Sin reposiciones", "No hay productos en la lista para confirmar.")
+            return
+
+        respuesta = QMessageBox.question(
+            self,
+            "Confirmar reposiciones",
+            f"¿Deseás registrar las {len(self.reposiciones_en_curso)} reposiciones?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if respuesta != QMessageBox.Yes:
+            return
+
         errores = []
+
         for item in self.reposiciones_en_curso:
-            exito = registrar_reposicion(
-                self.sesion,
-                codigo_barra=item["codigo_barra"],
-                cantidad=item["cantidad"],
-                usuario=self.usuario_actual  # o capturado en el diálogo
-            )
-            if not exito:
-                errores.append(item["codigo_barra"])
-        
+            producto = item["producto"]
+            cantidad_reponer = item["cantidad"]
+            codigo = producto["codigo_barra"]
+
+            try:
+                stock_actual = obtener_stock_actual(codigo)
+                nuevo_stock = stock_actual + cantidad_reponer
+                exito = modificar_stock(codigo, nuevo_stock)
+
+                if not exito:
+                    errores.append(f"{producto['nombre']}: error al actualizar el stock.")
+            except Exception as e:
+                errores.append(f"{producto['nombre']}: {str(e)}")
+
         if errores:
-            QMessageBox.warning(self, "Error parcial", f"Algunos productos no se pudieron registrar:\n" + "\n".join(errores))
+            QMessageBox.warning(
+                self,
+                "Errores durante la confirmación",
+                "Ocurrieron problemas al registrar algunas reposiciones:\n\n" + "\n".join(errores)
+            )
         else:
-            QMessageBox.information(self, "Reposiciones registradas", "Todas las reposiciones fueron exitosamente registradas.")
-            self.accept()
+            QMessageBox.information(
+                self,
+                "Reposiciones confirmadas",
+                f"Todas las reposiciones fueron registradas exitosamente."
+            )
+            self.accept()  # Cierra el diálogo con éxito
 
-    def agregar_a_reposiciones(self, producto: dict, cantidad: int = None, buscar: bool = False):
-        if buscar:
-            if cantidad is None:
-                QMessageBox.warning(self, "Cantidad faltante", "Debe especificar la cantidad.")
-                return
-        else:
-            cantidad = 1  # valor por defecto
 
-        # Verificar si ya existe en la lista
-        for item in self.reposiciones_en_curso:
-            if item["codigo_barra"] == producto["codigo_barra"]:
-                item["cantidad"] += cantidad
-                self.refrescar_tabla()
-                return
+    def manejar_producto_identificado(self, producto):
+        if any(p["producto"]["codigo"] == producto["codigo"] for p in self.reposiciones_en_curso):
+            QMessageBox.information(self, "Ya agregado", f"El producto '{producto['nombre']}' ya está en la lista.")
+            return
+        
+        cantidad = solicitar_cantidad(self, descripcion=producto["nombre"], stock=producto.get("stock", 99))
+        if cantidad is None:
+            return
 
-        # Agregar nuevo producto
+        self.beep.play()
+
+        fila = self.tabla.rowCount()
+        self.tabla.insertRow(fila)
+        self.tabla.setItem(fila, 0, QTableWidgetItem(producto["nombre"]))
+        self.tabla.setItem(fila, 1, QTableWidgetItem(producto["codigo_barra"]))
+        self.tabla.setItem(fila, 2, QTableWidgetItem(str(cantidad)))
+
         self.reposiciones_en_curso.append({
-            "nombre": producto["nombre"],
-            "codigo_barra": producto["codigo_barra"],
+            "producto": producto,
             "cantidad": cantidad
         })
+
         self.refrescar_tabla()
 
     def refrescar_tabla(self):
         self.tabla.setRowCount(len(self.reposiciones_en_curso))
         for fila, item in enumerate(self.reposiciones_en_curso):
-            self.tabla.setItem(fila, 0, QTableWidgetItem(item["nombre"]))
-            self.tabla.setItem(fila, 1, QTableWidgetItem(item["codigo_barra"]))
-            self.tabla.setItem(fila, 2, QTableWidgetItem(str(item["cantidad"])))
+            producto = item["producto"]
+            cantidad = item["cantidad"]
+
+            self.tabla.setItem(fila, 0, QTableWidgetItem(producto["nombre"]))
+            self.tabla.setItem(fila, 1, QTableWidgetItem(producto["codigo_barra"]))
+            self.tabla.setItem(fila, 2, QTableWidgetItem(str(cantidad)))
