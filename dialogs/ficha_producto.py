@@ -56,12 +56,27 @@ class FichaProductoDialog(QDialog):
 
         # 📊 Grupo: Stock
         stock_group = QGroupBox("📈 Inventario")
-        stock_layout = QHBoxLayout()
-        stock_layout.addWidget(QLabel("Stock actual:"))
+        stock_layout = QVBoxLayout()
+
+        # 🔢 Campo stock actual
+        fila_stock = QHBoxLayout()
+        fila_stock.addWidget(QLabel("Stock actual:"))
         self.campo_stock = QSpinBox()
         self.campo_stock.setRange(0, 100000)
         self.campo_stock.setEnabled(False)
-        stock_layout.addWidget(self.campo_stock)
+        fila_stock.addWidget(self.campo_stock)
+        stock_layout.addLayout(fila_stock)
+
+        # 🔢 Campo stock mínimo
+        fila_minimo = QHBoxLayout()
+        self.label_stock_minimo = QLabel("Stock mínimo:")
+        fila_minimo.addWidget(self.label_stock_minimo)
+        self.campo_stock_minimo = QSpinBox()
+        self.campo_stock_minimo.setRange(0, 100000)
+        self.campo_stock_minimo.setEnabled(False)
+        fila_minimo.addWidget(self.campo_stock_minimo)
+        stock_layout.addLayout(fila_minimo)
+
         stock_group.setLayout(stock_layout)
         left_panel.addWidget(stock_group)
 
@@ -143,9 +158,10 @@ class FichaProductoDialog(QDialog):
 
         estado = self.producto["estado"]
         nombre = self.producto["nombre"]
+        estado_tag = f"<h2>{nombre}</h2>"
 
         if estado == "activo":
-            self.nombre.setText(f"<h2>{nombre}</h2>")
+            self.nombre.setText(estado_tag)
             self.btn_estado.setText("⛔ Inactivar producto")
             self.btn_estado.setEnabled(True)
 
@@ -178,24 +194,18 @@ class FichaProductoDialog(QDialog):
                 self.mensaje_mostrado = True
             
         # 📄 Info básica
-        self.nombre.setText(f"<h2>{self.producto['nombre']}</h2>")
-        if self.producto["estado"] != "activo":
-            self.nombre.setText(
-                f"<h2 style='color:gray'>{self.producto['nombre']} (INACTIVO)</h2>"
-            )
-
-            if not self.mensaje_mostrado:
-                QMessageBox.information(
-                    self,
-                    "Producto inactivo",
-                    "⚠️ Este producto está actualmente inactivo.\nNo puede ser vendido ni utilizado en operaciones.",
-                    QMessageBox.StandardButton.Ok
-                )
-                self.mensaje_mostrado = True
-
+        
         self.codigo_label.setText(f"Código: {self.producto['codigo_barra']} — Categoría: {self.producto['categoria']}")
         self.descripcion.setText(self.producto["descripcion"])
-        self.campo_stock.setValue(self.producto["stock"])
+
+        self.campo_stock.setValue(self.producto["stock_actual"])
+        self.campo_stock_minimo.setValue(self.producto.get("stock_minimo", 0))
+
+        if self.producto["stock_actual"] < self.producto.get("stock_minimo", 0):
+            self.campo_stock.setStyleSheet("color: red; font-weight: bold;")
+        else:
+            self.campo_stock.setStyleSheet("")
+
         self.precio_compra.setValue(self.producto["precio_compra"])
         self.precio_venta.setValue(self.producto["precio_venta"])
         
@@ -216,18 +226,26 @@ class FichaProductoDialog(QDialog):
         if rol in ["dueño", "gerente"]:
             self.precio_compra.setEnabled(True)
             self.precio_venta.setEnabled(True)
+            self.campo_stock_minimo.setVisible(True)
             self.acciones_layout.addWidget(self.btn_guardar_precios)
             self.acciones_layout.addWidget(self.foto_group)
             self.acciones_layout.addWidget(self.btn_estado)
+            self.label_stock_minimo.show()
+            self.campo_stock_minimo.show()
+        else:
+            self.label_stock_minimo.hide()
+            self.campo_stock_minimo.hide()
 
         if rol == "dueño":
             self.campo_stock.setEnabled(True)
+            self.campo_stock_minimo.setEnabled(True)
             self.acciones_layout.addWidget(self.btn_guardar_stock)
             self.acciones_layout.addWidget(self.btn_eliminar)
 
     # Métodos a definir para acciones:
     def actualizar_stock(self): 
         nuevo_stock = self.campo_stock.value()
+        stock_minimo = self.campo_stock_minimo.value()
 
         confirm = QMessageBox.question(
             self, "Confirmar",
@@ -235,7 +253,7 @@ class FichaProductoDialog(QDialog):
             QMessageBox.Yes | QMessageBox.No
         )
         if confirm == QMessageBox.Yes:
-            if productos.modificar_stock(self.codigo, nuevo_stock):
+            if productos.modificar_stock(self.codigo, nuevo_stock, stock_minimo):
                 QMessageBox.information(self, "Éxito", "✅ Stock actualizado correctamente.")
                 self.producto_actualizado.emit()  # <--- EMITIR AQUÍ
                 self.accept()

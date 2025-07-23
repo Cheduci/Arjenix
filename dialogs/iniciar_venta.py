@@ -105,7 +105,9 @@ class IniciarVentaDialog(QDialog):
 
     def toggle_escaneo(self):
         if self.btn_escanear.isChecked():
-            self.btn_escanear.setText("⏹️ Detener escaneo")
+            self.detener_escaneo()  # ← asegurás que todo esté limpio
+            self.btn_escanear.setChecked(True)
+            self.btn_escanear.setText("⏹️ Detener escaneo")                   
             self.camara_loop = CamaraLoopThread()
             self.camara_loop.codigo_leido.connect(self.codigo_detectado)
             self.camara_loop.frame_listo.connect(self.mostrar_frame_camara)
@@ -124,6 +126,8 @@ class IniciarVentaDialog(QDialog):
             self.camara_loop._pausado = True
             # Reproducir sonido de beep
             self.beep.play()
+            self.camara_loop._historial.clear()     # ← Limpieza clave
+            self.camara_loop._ultimo_codigo = ""     # ← También conviene
             # self.actualizar_estado_completar()
 
             # Reactivar escaneo inmediatamente
@@ -139,16 +143,16 @@ class IniciarVentaDialog(QDialog):
             cantidad_ingresada = solicitar_cantidad(
                 parent=self,
                 descripcion=p["descripcion"],
-                stock=p["stock"]
+                stock=p["stock_actual"]
             )
             if cantidad_ingresada is None:
                 return True  # Usuario canceló sin error
             cantidad = cantidad_ingresada
 
-        if cantidad > p["stock"]:
+        if cantidad > p["stock_actual"]:
             QMessageBox.warning(
                 self, "Stock insuficiente",
-                f"Stock disponible: {p['stock']}.\nIntentaste agregar {cantidad} unidad(es)."
+                f"Stock disponible: {p['stock_actual']}.\nIntentaste agregar {cantidad} unidad(es)."
             )
             return True
             
@@ -156,7 +160,7 @@ class IniciarVentaDialog(QDialog):
         for item in self.carrito:
             if item["codigo"] == codigo:
                 total_cantidad = item["cantidad"] + cantidad
-                if total_cantidad > p["stock"]:
+                if total_cantidad > p["stock_actual"]:
                     QMessageBox.warning(
                         self, "Stock insuficiente",
                         f"Ya tenés {item['cantidad']} en el carrito.\nStock disponible: {p['stock']}."
@@ -174,7 +178,7 @@ class IniciarVentaDialog(QDialog):
             "descripcion": p["descripcion"],
             "precio_unitario": p["precio_venta"],
             "cantidad": cantidad,
-            "stock": p["stock"],
+            "stock": p["stock_actual"],
             "precio_compra": p["precio_compra"]
         }
         self.carrito.append(nuevo)
@@ -241,7 +245,7 @@ class IniciarVentaDialog(QDialog):
             QMessageBox.critical(self, "Error", "No se pudo obtener el producto.")
             return
 
-        stock_disponible = producto["stock"]
+        stock_disponible = producto["stock_actual"]
         if stock_disponible < 1:
             QMessageBox.warning(self, "Sin stock", "Este producto ya no tiene stock.")
             return
@@ -308,7 +312,7 @@ class IniciarVentaDialog(QDialog):
                 QMessageBox.critical(self, "Error", f"No se pudo obtener el producto {item['codigo']}.")
                 return
 
-            if item["cantidad"] > producto["stock"]:
+            if item["cantidad"] > producto["stock_actual"]:
                 QMessageBox.warning(
                     self,
                     "Stock insuficiente",
@@ -317,7 +321,7 @@ class IniciarVentaDialog(QDialog):
                 return
 
             # ⚠️ Advertencia si baja de stock mínimo
-            stock_final = producto["stock"] - item["cantidad"]
+            stock_final = producto["stock_actual"] - item["cantidad"]
             if stock_final < producto.get("stock_minimo", 0):
                 QMessageBox.information(
                     self,

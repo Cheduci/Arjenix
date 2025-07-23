@@ -41,16 +41,23 @@ def buscar_productos(nombre: str = "", codigo: str = "", categoria: str | None =
     ]
 
 
-def modificar_stock(codigo: str, nuevo_stock: int) -> bool:
+def modificar_stock(codigo: str, nuevo_stock: int, stock_minimo=None) -> bool:
     try:
         conn = db_config.conectar_db()
         cur = conn.cursor()
 
-        cur.execute("""
-            UPDATE productos
-            SET stock_actual = %s
-            WHERE codigo_barra = %s
-        """, (nuevo_stock, codigo))
+        if stock_minimo is not None:
+            cur.execute("""
+                UPDATE productos
+                SET stock_actual = %s, stock_minimo = %s
+                WHERE codigo_barra = %s
+            """, (nuevo_stock, stock_minimo, codigo))
+        else:
+            cur.execute("""
+                UPDATE productos
+                SET stock_actual = %s
+                WHERE codigo_barra = %s
+            """, (nuevo_stock, codigo))
 
         conn.commit()
         conn.close()
@@ -128,6 +135,7 @@ def obtener_producto_por_codigo(codigo: str) -> dict | None:
                 COALESCE(p.descripcion, ''),
                 COALESCE(c.nombre, 'Sin categoría'),
                 COALESCE(p.stock_actual, 0),
+                COALESCE(p.stock_minimo, 0),
                 COALESCE(p.precio_compra, 0),
                 COALESCE(p.precio_venta, 0),
                 COALESCE(p.estado, 'pendiente'),
@@ -146,11 +154,12 @@ def obtener_producto_por_codigo(codigo: str) -> dict | None:
                 "codigo_barra": fila[1],
                 "descripcion": fila[2],
                 "categoria": fila[3],
-                "stock": fila[4],
-                "precio_compra": float(fila[5]),
-                "precio_venta": float(fila[6]),
-                "estado": fila[7],
-                "foto": fila[8]
+                "stock_actual": fila[4],
+                "stock_minimo": fila[5],
+                "precio_compra": float(fila[6]),
+                "precio_venta": float(fila[7]),
+                "estado": fila[8],
+                "foto": fila[9]
             }
         return None
     except Exception as e:
