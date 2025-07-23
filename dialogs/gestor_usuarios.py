@@ -17,14 +17,26 @@ class GestorUsuariosDialog(QDialog):
         self.usuarios = []
         self.fila_actual = None
         self.setup_ui()
+        
 
     def setup_ui(self):
+        self.input_busqueda = QLineEdit()
+        self.input_busqueda.setPlaceholderText("🔍 Buscar usuario...")
+        self.input_busqueda.textChanged.connect(self.filtrar_usuarios)
+        self.layout().addWidget(self.input_busqueda)
+
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(5)
-        self.tabla.setHorizontalHeaderLabels(["ID", "Username", "Nombre", "Apellido", "Rol"])
+        self.tabla.setColumnCount(6)
+        self.tabla.setHorizontalHeaderLabels(["ID", "Username", "Nombre", "Apellido", "Rol", "Estado"])
         self.tabla.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tabla.cellClicked.connect(self.cargar_usuario_seleccionado)
+        self.tabla.setSortingEnabled(True)
         self.layout().addWidget(self.tabla)
+
+        header = self.tabla.horizontalHeader()
+        header.setSortIndicatorShown(True)
+        header.setSectionsClickable(True)
+
 
         # 🔄 Formulario inferior para edición
         form = QHBoxLayout()
@@ -98,6 +110,8 @@ class GestorUsuariosDialog(QDialog):
         self.input_email.setText(email or "")
         self.combo_rol.setCurrentText(rol)
 
+        self.actualizar_estado_boton()
+
         if activo:
             self.btn_toggle_activo.setText("🔴 Deshabilitar usuario")
             self.btn_toggle_activo.setStyleSheet("color: red;")
@@ -165,8 +179,17 @@ class GestorUsuariosDialog(QDialog):
             QMessageBox.warning(self, "Sin selección", "Seleccioná un usuario primero.")
             return
 
-        id_usuario, _, nombre, apellido, _, _, activo = self.usuarios[self.fila_actual]
+        id_usuario, _, nombre, apellido, rol, _, activo = self.usuarios[self.fila_actual]
         nuevo_estado = not activo
+        if rol == "dueño" and activo:
+            cantidad_dueños = self.contar_duegnos_activos()
+            if cantidad_dueños <= 1:
+                QMessageBox.critical(
+                    self,
+                    "⛔ Acción bloqueada",
+                    "No se puede deshabilitar el único usuario con rol de 'dueño'."
+                )
+                return
 
         conn = conectar_db()
         cur = conn.cursor()
@@ -175,6 +198,79 @@ class GestorUsuariosDialog(QDialog):
         conn.close()
 
         estado_str = "activado" if nuevo_estado else "deshabilitado"
-        QMessageBox.information(self, "✅ Estado actualizado", f"El usuario {nombre} {apellido} fue {estado_str}.")
+        QMessageBox.information(
+            self,
+            "✅ Estado actualizado",
+            f"El usuario {nombre} {apellido} fue {estado_str}."
+        )
+
+        # 🧩 Refrescar tabla y restaurar selección
         self.cargar_usuarios()
-        self.fila_actual = None
+
+        for fila, usuario in enumerate(self.usuarios):
+            if usuario[0] == id_usuario:
+                self.tabla.selectRow(fila)
+                self.fila_actual = fila
+                self.cargar_usuario_seleccionado(fila, 0)
+                break
+
+
+    def actualizar_estado_boton(self):
+        if self.fila_actual is None or self.fila_actual >= len(self.usuarios):
+            self.btn_toggle_activo.setText("🔴 Deshabilitar usuario")
+            return
+
+        usuario = self.usuarios[self.fila_actual]
+        activo = usuario[-1]  # suponiendo que 'activo' es el último elemento
+        if activo:
+            self.btn_toggle_activo.setText("🔴 Deshabilitar usuario")
+        else:
+            self.btn_toggle_activo.setText("🟢 Activar usuario")
+
+    def filtrar_usuarios(self, texto):
+        texto = texto.lower()
+        coincidencias = []
+
+        for usuario in self.usuarios:
+            id_, username, nombre, apellido, rol, email, activo = usuario
+            estado = "activo" if activo else "deshabilitado"  # ← forma textual
+
+            datos = f"{id_} {username} {nombre} {apellido} {rol} {email} {estado}".lower()
+            
+            if texto.isdigit() and int(texto) == id_:
+                coincidencias.append(usuario)
+                continue
+
+            if texto in datos:
+                coincidencias.append(usuario)
+
+        self.tabla.setRowCount(len(coincidencias))
+        for i, (id_, username, nombre, apellido, rol, email, activo) in enumerate(coincidencias):
+            estado = "Activo" if activo else "Deshabilitado"
+
+            self.tabla.setItem(i, 0, QTableWidgetItem(str(id_)))
+            self.tabla.setItem(i, 1, QTableWidgetItem(username))
+            self.tabla.setItem(i, 2, QTableWidgetItem(nombre))
+            self.tabla.setItem(i, 3, QTableWidgetItem(apellido))
+            self.tabla.setItem(i, 4, QTableWidgetItem(rol))
+            self.tabla.setItem(i, 5, QTableWidgetItem(estado))
+
+            if not activo:
+                for j in range(self.tabla.columnCount()):
+                    item = self.tabla.item(i, j)
+                    if item:
+                        item.setForeground(Qt.gray)
+                        item.setToolTip("Usuario deshabilitado")
+
+    def contar_duegnos_activos(self):
+        conn = conectar_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM usuarios u
+            JOIN roles r ON u.rol_id = r.id
+            WHERE r.nombre = 'dueño' AND u.activo = TRUE
+        """)
+        cantidad = cur.fetchone()[0]
+        conn.close()
+        return cantidad
