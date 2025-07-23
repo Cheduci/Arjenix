@@ -45,3 +45,26 @@ def registrar_venta(sesion, productos: list[dict], metodo_pago: str) -> bool:
     except Exception as e:
         print(f"❌ Error en registrar_venta: {e}")
         return False
+
+def consultar_reporte_diario(fecha_inicio, fecha_fin):
+    conn = conectar_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT 
+            v.fecha_hora AS fecha_hora,  -- ← fecha completa con hora
+            p.nombre,
+            dv.cantidad,
+            dv.precio_unitario * dv.cantidad AS venta_total,
+            (dv.precio_unitario - COALESCE(dv.precio_compra, 0)) * dv.cantidad AS ganancia
+        FROM detalle_ventas dv
+        JOIN ventas v ON v.id = dv.venta_id
+        JOIN productos p ON p.id = dv.producto_id
+        WHERE v.fecha_hora >= %s AND v.fecha_hora < %s
+        ORDER BY fecha_hora ASC, p.nombre
+
+    """, (fecha_inicio, fecha_fin))
+
+    resultados = cur.fetchall()
+    conn.close()
+    return resultados

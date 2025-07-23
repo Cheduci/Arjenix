@@ -12,6 +12,7 @@ from dialogs.ranking_ventas import RankingVentasDialog
 from dialogs.iniciar_venta import IniciarVentaDialog
 from dialogs.ver_bajostock import StockBajoDialog
 from dialogs.registrar_reposicion import RegistrarReposicionDialog
+from dialogs.reporte_diario import ReporteDiarioDialog
 from helpers.mixin_cuenta import *
 from helpers.panel_base import *
 
@@ -172,6 +173,10 @@ class PanelGerente(PanelRepositor, PanelVendedor):
         btn_ranking.clicked.connect(self.ver_ranking_ventas)
         inner.addWidget(btn_ranking)
 
+        btn_reporte = QPushButton("🗓️ Reporte de ganancias")
+        btn_reporte.clicked.connect(self.mostrar_reporte_diario)
+        inner.addWidget(btn_reporte)
+
         box.setLayout(inner)
         layout.addWidget(box)
 
@@ -187,6 +192,9 @@ class PanelGerente(PanelRepositor, PanelVendedor):
         dialogo = RankingVentasDialog()
         dialogo.exec()
 
+    def mostrar_reporte_diario(self):
+        dialogo = ReporteDiarioDialog(parent=self)
+        dialogo.exec()
 
 
 class PanelAjustesSistema(QWidget):
