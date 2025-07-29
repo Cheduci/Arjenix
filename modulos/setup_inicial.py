@@ -1,7 +1,8 @@
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout, QMessageBox
-)
+    QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout, QMessageBox,
+    QFileDialog)
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from bbdd import db_config
 import bcrypt
 import os
@@ -16,6 +17,11 @@ class SetupInicialDialog(QDialog):
         super().__init__()
         self.setWindowTitle("🛠️ Configuración inicial — Arjenix")
         self.setFixedSize(400, 420)
+        self.nombre_empresa_input = QLineEdit()
+        self.slogan_input = QLineEdit()
+        self.logo_button = QPushButton("Seleccionar logo")
+        self.logo_preview = QLabel()
+        self.logo_button.clicked.connect(self.seleccionar_logo)
         self.setup_ui()
 
     def setup_ui(self):
@@ -23,6 +29,14 @@ class SetupInicialDialog(QDialog):
 
         layout.addWidget(QLabel("👋 Bienvenido a Arjenix"))
         layout.addWidget(QLabel("Primero debemos crear al usuario dueño."))
+
+        empresa_layout = QFormLayout()
+        empresa_layout.addRow("🏢 Nombre empresa:", self.nombre_empresa_input)
+        empresa_layout.addRow("💬 Slogan (opcional):", self.slogan_input)
+        empresa_layout.addRow("🖼️ Logo:", self.logo_button)
+        empresa_layout.addRow(self.logo_preview)
+
+        layout.addLayout(empresa_layout)
 
         form = QFormLayout()
 
@@ -56,7 +70,7 @@ class SetupInicialDialog(QDialog):
         layout.addWidget(self.btn_crear)
 
         self.setLayout(layout)
-
+    
     def crear_duenio(self):
         datos = {
             "dni": self.dni.text().strip(),
@@ -116,6 +130,24 @@ class SetupInicialDialog(QDialog):
                 VALUES (%s, %s, %s, %s, TRUE, FALSE)
             """, (persona_id, datos["username"], hashpw, rol_id))
 
+            nombre_empresa = self.nombre_empresa_input.text().strip()
+            slogan = self.slogan_input.text().strip()
+            logo_bytes = getattr(self, "logo_data", None)
+
+            if logo_bytes is None and hasattr(self, "logo_path"):
+                try:
+                    with open(self.logo_path, "rb") as f:
+                        logo_bytes = f.read()
+                except Exception:
+                    logo_bytes = None  # fallback silencioso
+
+            if nombre_empresa:
+                cur.execute("""
+                    INSERT INTO configuracion_empresa (nombre, slogan, logo)
+                    VALUES (%s, %s, %s)
+                    RETURNING id
+                """, (nombre_empresa, slogan or None, logo_bytes))
+
             conn.commit()
             conn.close()
 
@@ -130,3 +162,23 @@ class SetupInicialDialog(QDialog):
         finally:
             if conn:
                 conn.close()
+
+    def seleccionar_logo(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Seleccionar logo", "", "Imágenes (*.png *.jpg *.jpeg)")
+        if path:
+            self.logo_path = path
+            with open(path, "rb") as f:
+                self.logo_data = f.read()  # esto lo vas a insertar como BYTEA
+            pixmap = QPixmap(path).scaled(150, 150, Qt.KeepAspectRatio)
+            self.logo_preview.setPixmap(pixmap)
+    
+def obtener_logo(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT logo FROM configuracion_empresa LIMIT 1")
+    result = cur.fetchone()
+    if result and result[0]:
+        img_bytes = result[0]
+        pixmap = QPixmap()
+        pixmap.loadFromData(img_bytes)
+        return pixmap
+    return None

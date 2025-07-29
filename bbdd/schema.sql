@@ -81,6 +81,14 @@ CREATE TABLE IF NOT EXISTS detalle_ventas (
     precio_compra NUMERIC(10, 2)
 );
 
+-- Tabla datos de la empresa
+CREATE TABLE IF NOT EXISTS configuracion_empresa (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    nombre TEXT NOT NULL,
+    slogan TEXT,
+    logo BYTEA
+);
+
 -- 📦 Registro de aplicaciones instaladas en el ecosistema
 CREATE TABLE IF NOT EXISTS sistema_aplicaciones (
     id SERIAL PRIMARY KEY,

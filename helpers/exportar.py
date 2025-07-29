@@ -1,10 +1,15 @@
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
-import os
 import tempfile
 import barcode
 from barcode.writer import ImageWriter
 import webbrowser
+from datetime import datetime, timedelta
+from reportlab.lib.utils import ImageReader
+from reportlab.lib.units import cm
+from collections import defaultdict
+import os, csv
+from core.configuracion import obtener_config_empresa
 
 def exportar_credenciales_basicas(nombre_archivo, usuario: str, password: str, rol: str = "dueño"):
     carpeta = os.path.dirname(nombre_archivo)
@@ -92,3 +97,191 @@ def exportar_codigo_pdf(nombre, codigo, precio, cantidad):
 
     except Exception as e:
         print(f"❌ Error al generar etiquetas: {e}")
+
+def exportar_csv_reporte_diario(resultados, sesion):
+
+    carpeta = os.path.join("exportaciones", "reportes")
+    os.makedirs(carpeta, exist_ok=True)
+
+    fecha_texto = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    nombre_archivo = os.path.join(carpeta, f"reporte_{fecha_texto}.csv")
+    usuario = sesion.get("username", "desconocido")
+
+    with open(nombre_archivo, mode="w", newline="", encoding="utf-8") as archivo:
+        writer = csv.writer(archivo)
+        writer.writerow([f"# Generado por: {usuario} | Fecha de exportación: {fecha_texto}"])
+        writer.writerow(["Fecha", "Hora", "Producto", "Cantidad", "Venta total", "Ganancia"])
+        for fecha_hora, nombre, cantidad, venta_total, ganancia in resultados:
+            writer.writerow([
+                fecha_hora.date(),
+                fecha_hora.time().strftime("%H:%M:%S"),
+                nombre,
+                cantidad,
+                f"{venta_total:.2f}",
+                f"{ganancia:.2f}"
+            ])
+
+    return nombre_archivo
+
+def agrupar_por_producto(resultados):
+    agrupado = defaultdict(lambda: {"cantidad": 0, "venta": 0, "ganancia": 0})
+    for fila in resultados:
+        producto = fila[1]  # nombre
+        cantidad = fila[2]
+        venta_total = fila[3]
+        ganancia = fila[4]
+
+        agrupado[producto]["cantidad"] += cantidad
+        agrupado[producto]["venta"] += venta_total
+        agrupado[producto]["ganancia"] += ganancia
+
+    return agrupado
+
+def exportar_pdf_diario(resultados, sesion):
+    # Crear ruta completa
+    carpeta = os.path.join("exportaciones", "reportes")
+    os.makedirs(carpeta, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    usuario = sesion.get("username", "desconocido")
+    nombre_archivo = f"reporte_diario_{timestamp}_{usuario}.pdf"
+    ruta = os.path.join(carpeta, nombre_archivo)
+
+    # 📥 Datos de configuración
+    config_empresa = obtener_config_empresa()
+    fecha_generacion = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    c = canvas.Canvas(ruta, pagesize=A4)
+    ancho, alto = A4
+
+    # Agrupamos resultados por fecha
+    agrupado = defaultdict(list)
+    for fila in resultados:
+        fecha = fila[0].date()
+        agrupado[fecha].append(fila)
+
+    for fecha, items in sorted(agrupado.items(), reverse=True):
+        # Encabezado institucional (logo, nombre, fecha)
+        dibujar_encabezado(c, config_empresa, fecha)
+
+        y = alto - 120  # posición inicial
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, f"🗓 Fecha: {fecha}")
+        y -= 20
+        c.drawString(50, y, "Artículos vendidos:")
+        y -= 25
+
+        # Dibujamos cada producto vendido
+        dibujar_contenido_del_dia(c, items, fecha)
+
+        # Pie institucional
+        dibujar_pie_de_pagina(c)
+
+        c.showPage()
+
+    c.save()
+    return ruta
+
+
+def dibujar_encabezado(canvas, datos_empresa, fecha):
+    ancho, alto = A4
+    margen_izq = 50
+    margen_sup = alto - 50
+
+    # Logo
+    if datos_empresa.get('logo'):
+        # Logo binario (guardamos temporalmente si existe)
+        logo_binario = datos_empresa.get('logo')
+        if logo_binario:
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp:
+                    temp.write(logo_binario)
+                    ruta_temporal = temp.name
+
+                canvas.drawImage(
+                    ImageReader(ruta_temporal),
+                    margen_izq, margen_sup - 40,
+                    width=60, height=40,
+                    preserveAspectRatio=True, mask='auto'
+                )
+
+                os.remove(ruta_temporal)  # eliminamos el archivo temporal
+            except Exception as e:
+                print(f"⚠️ Error al cargar logo desde binario: {e}")
+
+    # Nombre de empresa y slogan
+    canvas.setFont("Helvetica-Bold", 14)
+    canvas.drawString(margen_izq + 70, margen_sup - 10, datos_empresa.get('nombre', ''))
+    canvas.setFont("Helvetica-Oblique", 10)
+    canvas.drawString(margen_izq + 70, margen_sup - 25, datos_empresa.get('slogan', ''))
+
+    # Fecha de generación
+    canvas.setFont("Helvetica", 9)
+    canvas.drawRightString(ancho - 50, margen_sup - 10, f"Generado: {fecha}")
+
+def dibujar_pie_de_pagina(canvas):
+    ancho, alto = A4
+    margen_inf = 40
+
+    # Línea de separación
+    canvas.setStrokeColorRGB(0.6, 0.6, 0.6)
+    canvas.setLineWidth(0.5)
+    canvas.line(50, margen_inf + 15, ancho - 50, margen_inf + 15)
+
+    # Texto del pie
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColorRGB(0.3, 0.3, 0.3)
+    canvas.drawString(50, margen_inf, "Este informe es confidencial y de uso interno.")
+    canvas.drawRightString(ancho - 50, margen_inf, f"Página {canvas.getPageNumber()} - {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    
+def dibujar_contenido_del_dia(canvas, items, fecha):
+    ancho, alto = A4
+    y = alto - 120
+
+    # Encabezado de fecha y sección
+    canvas.setFont("Helvetica-Bold", 12)
+    canvas.drawString(50, y, f"Fecha: {fecha}")
+    y -= 20
+    canvas.drawString(50, y, "Artículos vendidos:")
+    y -= 25
+
+    # Títulos de tabla
+    canvas.setFont("Helvetica-Bold", 10)
+    canvas.drawString(60, y, "Producto")
+    canvas.drawString(220, y, "Cant.")
+    canvas.drawString(270, y, "Venta")
+    canvas.drawString(340, y, "Ganancia")
+    y -= 15
+    canvas.line(50, y, 550, y)
+    y -= 10
+
+    agrupados = agrupar_por_producto(items)
+
+    # Filas de productos
+    canvas.setFont("Helvetica", 10)
+    total_cant = total_venta = total_ganancia = 0
+
+    for producto, datos in agrupados.items():
+        canvas.drawString(60, y, producto)  # nombre
+        canvas.drawRightString(260, y, str(datos["cantidad"]))
+        canvas.drawRightString(330, y, f"${datos['venta']:.2f}")
+        canvas.drawRightString(400, y, f"${datos['ganancia']:.2f}")
+
+        total_cant += datos["cantidad"]
+        total_venta += datos["venta"]
+        total_ganancia += datos["ganancia"]
+        y -= 15
+
+        if y < 100:
+            canvas.showPage()
+            y = alto - 100
+
+    # Línea final y totales
+    y -= 5
+    canvas.line(50, y, 550, y)
+    y -= 15
+    canvas.setFont("Helvetica-Bold", 10)
+    canvas.drawString(60, y, "Totales:")
+    canvas.drawRightString(260, y, str(total_cant))
+    canvas.drawRightString(330, y, f"${total_venta:.2f}")
+    canvas.drawRightString(400, y, f"${total_ganancia:.2f}")

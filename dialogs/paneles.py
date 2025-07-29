@@ -193,7 +193,7 @@ class PanelGerente(PanelRepositor, PanelVendedor):
         dialogo.exec()
 
     def mostrar_reporte_diario(self):
-        dialogo = ReporteDiarioDialog(parent=self)
+        dialogo = ReporteDiarioDialog(self.sesion)
         dialogo.exec()
 
 
