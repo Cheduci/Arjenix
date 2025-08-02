@@ -318,8 +318,6 @@ class FichaProductoDialog(QDialog):
                 QMessageBox.critical(self, "Error", "No se pudo eliminar el producto.")
     
     def exportar_etiqueta_pdf(self):
-
-
         cantidad, ok = QInputDialog.getInt(self, "Cantidad de etiquetas", "¿Cuántas etiquetas querés imprimir?", 1, 1, 999)
         if not ok:
             return
@@ -328,7 +326,11 @@ class FichaProductoDialog(QDialog):
         codigo = self.producto["codigo_barra"]
         precio = self.producto["precio_venta"]
 
-        exportar_codigo_pdf(nombre, codigo, precio, cantidad)
+        ruta, error = exportar_codigo_pdf(nombre, codigo, precio, cantidad)
+        if ruta:
+            QMessageBox.information(self, "Etiqueta exportada", f"✅ Etiqueta guardada en:\n{ruta}")
+        else:
+            QMessageBox.critical(self, "Error", f"❌ No se pudo exportar la etiqueta.\nDetalles: {error}")
 
     def actualizar_foto(self, foto_bytes):
         """Actualiza la imagen en la interfaz y la base de datos."""

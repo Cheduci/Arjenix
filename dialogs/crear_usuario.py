@@ -24,8 +24,8 @@ class CrearUsuarioDialog(QDialog):
 
         if self.personas_disponibles:
             self.mostrar_formulario_de_persona_existente()
-        else:
-            self.confirmar_crear_persona_nueva()
+        elif self.confirmar_crear_persona_nueva():
+            pass
 
     def reemplazar_layout(self, nuevo_layout: QVBoxLayout):
         anterior = self.layout()
@@ -114,6 +114,11 @@ class CrearUsuarioDialog(QDialog):
                 persona_id = insertar_persona(persona)
                 self.persona_id = persona_id
                 self.mostrar_formulario_de_usuario_sobre(persona)
+                return True
+            else:
+                return False
+        else:
+            return False
 
     def mostrar_formulario_de_usuario_sobre(self, persona: dict):
         self.setWindowTitle("👤 Asignar usuario a nueva persona")
@@ -155,8 +160,8 @@ class CrearUsuarioDialog(QDialog):
 
         password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         if crear_usuario(self.persona_id, username, password_hash, rol_id):
-            ruta = os.path.join(os.getcwd(), f"exportaciones/credenciales/credenciales_{username}.pdf")
-            exportar_credenciales_basicas(ruta, username, password, rol=self.combo_rol.currentText())
+            # ruta = os.path.join(os.getcwd(), f"exportaciones/credenciales/credenciales_{username}.pdf")
+            ruta = exportar_credenciales_basicas(username, password, rol=self.combo_rol.currentText())
 
             QMessageBox.information(self, "Credenciales exportadas", f"Se guardó un PDF con los datos en:\n{ruta}")
             QMessageBox.information(self, "Usuario creado", "🟢 Usuario registrado correctamente.")

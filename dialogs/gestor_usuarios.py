@@ -49,6 +49,9 @@ class GestorUsuariosDialog(QDialog):
 
         self.btn_toggle_activo = QPushButton("🔴 Deshabilitar usuario")
         self.btn_toggle_activo.clicked.connect(self.toggle_estado_usuario)
+        self.btn_resetear_password = QPushButton("🔐 Resetear contraseña")
+        self.btn_resetear_password.clicked.connect(self.resetear_contrasena_usuario)
+        
         
         form.addWidget(QLabel("Nombre"))
         form.addWidget(self.input_nombre)
@@ -59,13 +62,20 @@ class GestorUsuariosDialog(QDialog):
         form.addWidget(QLabel("Rol"))
         form.addWidget(self.combo_rol)
         form.addWidget(self.btn_toggle_activo)
+        form.addWidget(self.btn_resetear_password)
 
         self.layout().addLayout(form)
 
         # 📥 Botones acción
+        botones_layout = QHBoxLayout()
         btn_guardar = QPushButton("💾 Guardar cambios")
         btn_guardar.clicked.connect(self.guardar_cambios)
-        self.layout().addWidget(btn_guardar)
+        botones_layout.addWidget(btn_guardar)
+        self.btn_eliminar_usuario = QPushButton("🗑️ Eliminar usuario")
+        self.btn_eliminar_usuario.clicked.connect(self.eliminar_usuario_seleccionado)
+        botones_layout.addWidget(self.btn_eliminar_usuario)
+
+        self.layout().addLayout(botones_layout)
 
         self.cargar_usuarios()
 
@@ -274,3 +284,76 @@ class GestorUsuariosDialog(QDialog):
         cantidad = cur.fetchone()[0]
         conn.close()
         return cantidad
+
+    def resetear_contrasena_usuario(self):
+        if self.fila_actual is None:
+            QMessageBox.warning(self, "Selección requerida", "❗ Seleccioná un usuario primero.")
+            return
+
+        id_usuario = self.usuarios[self.fila_actual][0]
+
+        try:
+            conn = conectar_db()
+            cur = conn.cursor()
+
+            # 🔍 Obtener email actual desde la DB
+            cur.execute("""
+                SELECT debe_cambiar_password
+                FROM usuarios
+                WHERE id = %s
+            """, (id_usuario,))
+            deber_cambiar_password = cur.fetchone()[0] if cur.rowcount else False
+
+            # 📧 Validar email solo si cambió y no está vacío
+            if deber_cambiar_password is False:
+                cur.execute("""
+                    UPDATE usuarios
+                    SET debe_cambiar_password = TRUE
+                    WHERE id = %s
+                """, (id_usuario,))
+                conn.commit()
+                QMessageBox.information(self, "Contraseña reseteada", "🔐 El usuario deberá cambiar su contraseña al próximo ingreso.")
+
+            else:
+                QMessageBox.warning(self, "Contraseña ya reseteada", "🔐 El usuario ya debe cambiar su contraseña.")
+                return
+
+            conn.commit()
+            self.cargar_usuarios()
+
+        except Exception as e:
+            QMessageBox.critical(self, "❌ Error", f"Ocurrió un error: {e}")
+        finally:
+            conn.close()
+
+    def eliminar_usuario_seleccionado(self):
+        if self.fila_actual is None:
+            QMessageBox.warning(self, "Selección requerida", "❗ Seleccioná un usuario primero.")
+            return
+
+        id_usuario = self.usuarios[self.fila_actual][0]
+        nombre = self.usuarios[self.fila_actual][2]
+        apellido = self.usuarios[self.fila_actual][3]
+
+        respuesta = QMessageBox.question(
+            self,
+            "Confirmar eliminación",
+            f"¿Estás seguro de eliminar al usuario {nombre} {apellido}?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if respuesta == QMessageBox.No:
+            return
+
+        try:
+            conn = conectar_db()
+            cur = conn.cursor()
+            cur.execute("DELETE FROM usuarios WHERE id = %s", (id_usuario,))
+            conn.commit()
+            QMessageBox.information(self, "Usuario eliminado", f"✅ El usuario {nombre} {apellido} fue eliminado correctamente.")
+            self.cargar_usuarios()
+        except Exception as e:
+            QMessageBox.critical(self, "❌ Error", f"Ocurrió un error al eliminar el usuario: {e}")
+        finally:
+            conn.close()

@@ -329,6 +329,9 @@ class PanelDueño(PanelGerente):
 
     def abrir_crear_usuario(self):
         dialogo = CrearUsuarioDialog(self.sesion)
+        if not dialogo.personas_disponibles and not hasattr(dialogo, "persona_id"):
+            # El usuario no creó persona nueva
+            return
         dialogo.exec()
 
     def abrir_gestor_usuarios(self):

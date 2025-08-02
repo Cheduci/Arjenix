@@ -11,17 +11,21 @@ from collections import defaultdict
 import os, csv
 from core.configuracion import obtener_config_empresa
 from reportlab.lib import colors
+from win32com.shell import shell, shellcon
 from pathlib import Path
 
-documentos = Path.home() / "Documents"
-directorio = documentos / "Exportaciones Arjenix"
+# documentos = Path.home() / "Documents"
 
-def exportar_credenciales_basicas(nombre_archivo, usuario: str, password: str, rol: str = "dueño"):
-    carpeta = os.path.dirname(nombre_archivo)
-    if not os.path.exists(carpeta):
-        os.makedirs(carpeta)
-    
-    c = canvas.Canvas(nombre_archivo, pagesize=A4)
+
+documentos = Path(shell.SHGetFolderPath(0, shellcon.CSIDL_PERSONAL, None, 0))
+directorio = documentos / "Exportaciones_Arjenix"
+
+def exportar_credenciales_basicas(usuario: str, password: str, rol: str = "dueño"):
+    carpeta = directorio / "credenciales"
+    if not carpeta.exists():
+        carpeta.mkdir(parents=True)
+    ruta = str(carpeta / f"credenciales_{usuario}.pdf")
+    c = canvas.Canvas(ruta, pagesize=A4)
     c.setTitle("Credenciales iniciales — Arjenix")
 
     x = 80
@@ -44,9 +48,16 @@ def exportar_credenciales_basicas(nombre_archivo, usuario: str, password: str, r
     c.drawString(x, y, "Este archivo fue generado automáticamente al configurar Arjenix.")
 
     c.save()
+    ruta = carpeta / f"credenciales_{usuario}.pdf"
+    return ruta
 
 def exportar_codigo_pdf(nombre, codigo, precio, cantidad):
     try:
+        # Directorio de exportación
+        carpeta = directorio / "etiquetas"
+        if not carpeta.exists():
+            carpeta.mkdir(parents=True)
+
         cantidad = int(cantidad)
         if cantidad <= 0:
             print("⚠️ La cantidad debe ser mayor a cero.")
@@ -64,11 +75,9 @@ def exportar_codigo_pdf(nombre, codigo, precio, cantidad):
         imagen_path = ean.save(tmp_path_base)
 
         # Preparar PDF
-        directorio = os.path.join(os.getcwd(), "exportaciones", "etiquetas")
-        os.makedirs(directorio, exist_ok=True)
 
-        pdf_path = os.path.join(directorio, f"etiquetas_{codigo}.pdf")
-        c = canvas.Canvas(pdf_path, pagesize=A4)
+        ruta = str(carpeta / f"etiquetas_{codigo}.pdf")
+        c = canvas.Canvas(ruta, pagesize=A4)
         pagina_ancho, pagina_alto = A4
 
         margen_izq = 40
@@ -94,22 +103,23 @@ def exportar_codigo_pdf(nombre, codigo, precio, cantidad):
         c.save()
 
         os.remove(imagen_path)
-        webbrowser.open(pdf_path)
-        print(f"✅ PDF generado: {pdf_path}")
+        webbrowser.open(ruta)
+        print(f"✅ PDF generado: {ruta}")
 
-        if cantidad > etiquetas_a_imprimir:
-            print(f"ℹ️ Se generó una hoja con {etiquetas_a_imprimir}. Podés imprimir {cantidad // etiquetas_a_imprimir} copias para cubrir la cantidad deseada.")
+        ruta = carpeta / f"etiquetas_{codigo}.pdf"
+        return ruta, None
 
     except Exception as e:
-        print(f"❌ Error al generar etiquetas: {e}")
+        return None, e
 
 def exportar_csv_reporte_diario(resultados, sesion):
 
-    carpeta = os.path.join("exportaciones", "reportes")
-    os.makedirs(carpeta, exist_ok=True)
+    carpeta = directorio / "reportes"
+    if not carpeta.exists():
+        carpeta.mkdir(parents=True)
 
     fecha_texto = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    nombre_archivo = os.path.join(carpeta, f"reporte_{fecha_texto}.csv")
+    nombre_archivo = str(carpeta / f"reporte_{fecha_texto}.csv")
     usuario = sesion.get("username", "desconocido")
 
     with open(nombre_archivo, mode="w", newline="", encoding="utf-8") as archivo:
@@ -128,20 +138,6 @@ def exportar_csv_reporte_diario(resultados, sesion):
 
     return nombre_archivo
 
-def agrupar_por_producto(resultados):
-    agrupado = defaultdict(lambda: {"cantidad": 0, "venta": 0, "ganancia": 0})
-    for fila in resultados:
-        producto = fila[1]  # nombre
-        cantidad = fila[2]
-        venta_total = fila[3]
-        ganancia = fila[4]
-
-        agrupado[producto]["cantidad"] += cantidad
-        agrupado[producto]["venta"] += venta_total
-        agrupado[producto]["ganancia"] += ganancia
-
-    return agrupado
-
 def exportar_pdf_diario(resultados, sesion):
     # Crear ruta completa
     carpeta = directorio / "reportes"
@@ -150,7 +146,7 @@ def exportar_pdf_diario(resultados, sesion):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     usuario = sesion.get("username", "desconocido")
     nombre_archivo = f"reporte_diario_{timestamp}_{usuario}.pdf"
-    ruta = carpeta / nombre_archivo
+    ruta = str(carpeta / nombre_archivo)
 
     # 📥 Datos de configuración
     config_empresa = obtener_config_empresa()
@@ -187,6 +183,19 @@ def exportar_pdf_diario(resultados, sesion):
     c.save()
     return ruta
 
+def agrupar_por_producto(resultados):
+    agrupado = defaultdict(lambda: {"cantidad": 0, "venta": 0, "ganancia": 0})
+    for fila in resultados:
+        producto = fila[1]  # nombre
+        cantidad = fila[2]
+        venta_total = fila[3]
+        ganancia = fila[4]
+
+        agrupado[producto]["cantidad"] += cantidad
+        agrupado[producto]["venta"] += venta_total
+        agrupado[producto]["ganancia"] += ganancia
+
+    return agrupado
 
 def dibujar_encabezado(canvas, datos_empresa, fecha):
     ancho, alto = A4
