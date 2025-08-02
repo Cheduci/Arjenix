@@ -10,6 +10,11 @@ from reportlab.lib.units import cm
 from collections import defaultdict
 import os, csv
 from core.configuracion import obtener_config_empresa
+from reportlab.lib import colors
+from pathlib import Path
+
+documentos = Path.home() / "Documents"
+directorio = documentos / "Exportaciones Arjenix"
 
 def exportar_credenciales_basicas(nombre_archivo, usuario: str, password: str, rol: str = "dueño"):
     carpeta = os.path.dirname(nombre_archivo)
@@ -139,13 +144,13 @@ def agrupar_por_producto(resultados):
 
 def exportar_pdf_diario(resultados, sesion):
     # Crear ruta completa
-    carpeta = os.path.join("exportaciones", "reportes")
-    os.makedirs(carpeta, exist_ok=True)
+    carpeta = directorio / "reportes"
+    carpeta.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     usuario = sesion.get("username", "desconocido")
     nombre_archivo = f"reporte_diario_{timestamp}_{usuario}.pdf"
-    ruta = os.path.join(carpeta, nombre_archivo)
+    ruta = carpeta / nombre_archivo
 
     # 📥 Datos de configuración
     config_empresa = obtener_config_empresa()
@@ -165,11 +170,11 @@ def exportar_pdf_diario(resultados, sesion):
         dibujar_encabezado(c, config_empresa, fecha)
 
         y = alto - 120  # posición inicial
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(50, y, f"🗓 Fecha: {fecha}")
-        y -= 20
-        c.drawString(50, y, "Artículos vendidos:")
-        y -= 25
+        # c.setFont("Helvetica-Bold", 12)
+        # c.drawString(50, y, f"🗓 Fecha: {fecha}")
+        # y -= 20
+        # c.drawString(50, y, "Artículos vendidos:")
+        # y -= 25
 
         # Dibujamos cada producto vendido
         dibujar_contenido_del_dia(c, items, fecha)
@@ -217,7 +222,7 @@ def dibujar_encabezado(canvas, datos_empresa, fecha):
 
     # Fecha de generación
     canvas.setFont("Helvetica", 9)
-    canvas.drawRightString(ancho - 50, margen_sup - 10, f"Generado: {fecha}")
+    canvas.drawRightString(ancho - 50, margen_sup - 10, f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 def dibujar_pie_de_pagina(canvas):
     ancho, alto = A4
@@ -232,7 +237,7 @@ def dibujar_pie_de_pagina(canvas):
     canvas.setFont("Helvetica", 8)
     canvas.setFillColorRGB(0.3, 0.3, 0.3)
     canvas.drawString(50, margen_inf, "Este informe es confidencial y de uso interno.")
-    canvas.drawRightString(ancho - 50, margen_inf, f"Página {canvas.getPageNumber()} - {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    canvas.drawRightString(ancho - 50, margen_inf, f"Página {canvas.getPageNumber()}")
     
 def dibujar_contenido_del_dia(canvas, items, fecha):
     ancho, alto = A4
@@ -240,6 +245,7 @@ def dibujar_contenido_del_dia(canvas, items, fecha):
 
     # Encabezado de fecha y sección
     canvas.setFont("Helvetica-Bold", 12)
+    canvas.setFillColor(colors.darkblue)
     canvas.drawString(50, y, f"Fecha: {fecha}")
     y -= 20
     canvas.drawString(50, y, "Artículos vendidos:")
@@ -247,11 +253,17 @@ def dibujar_contenido_del_dia(canvas, items, fecha):
 
     # Títulos de tabla
     canvas.setFont("Helvetica-Bold", 10)
+    canvas.setFillColor(colors.white)
+    canvas.setFillColorRGB(0.4, 0.6, 0.8)  # azul suave
+    canvas.rect(50, y - 2, 500, 15, fill=True, stroke=False)
+    canvas.setFillColor(colors.white)
     canvas.drawString(60, y, "Producto")
     canvas.drawString(220, y, "Cant.")
     canvas.drawString(270, y, "Venta")
     canvas.drawString(340, y, "Ganancia")
     y -= 15
+
+    canvas.setStrokeColor(colors.grey)
     canvas.line(50, y, 550, y)
     y -= 10
 
@@ -261,7 +273,12 @@ def dibujar_contenido_del_dia(canvas, items, fecha):
     canvas.setFont("Helvetica", 10)
     total_cant = total_venta = total_ganancia = 0
 
-    for producto, datos in agrupados.items():
+    for i, (producto, datos) in enumerate(agrupados.items()):
+        if i % 2 == 0:
+            canvas.setFillColorRGB(0.95, 0.95, 1)  # fondo azul claro
+            canvas.rect(50, y - 2, 500, 15, fill=True, stroke=False)
+
+        canvas.setFillColor(colors.black)
         canvas.drawString(60, y, producto)  # nombre
         canvas.drawRightString(260, y, str(datos["cantidad"]))
         canvas.drawRightString(330, y, f"${datos['venta']:.2f}")
@@ -278,9 +295,11 @@ def dibujar_contenido_del_dia(canvas, items, fecha):
 
     # Línea final y totales
     y -= 5
+    canvas.setStrokeColor(colors.darkgrey)
     canvas.line(50, y, 550, y)
     y -= 15
     canvas.setFont("Helvetica-Bold", 10)
+    canvas.setFillColor(colors.darkblue)
     canvas.drawString(60, y, "Totales:")
     canvas.drawRightString(260, y, str(total_cant))
     canvas.drawRightString(330, y, f"${total_venta:.2f}")
