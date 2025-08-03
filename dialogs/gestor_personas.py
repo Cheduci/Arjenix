@@ -48,7 +48,7 @@ class GestorPersonasDialog(QDialog):
         if personas is None:
             self.todas_las_personas = obtener_personas_desde_db()  # Función tuya que hace SELECT
             personas = self.todas_las_personas
-        self.tabla.setColumnCount(len(personas[0]) if personas else 0)
+        self.tabla.setColumnCount(6)
         self.tabla.setHorizontalHeaderLabels(["DNI", "Nombre", "Apellido", "Email", "Fecha de Nacimiento", "Foto"])
         self.tabla.setRowCount(len(personas))
 
@@ -94,14 +94,8 @@ class GestorPersonasDialog(QDialog):
             return
 
         dialogo = PersonaDialog(modo="editar", persona=persona_original)
-        if dialogo.exec():
-            persona = dialogo.obtener_datos()
-            exito, error = actualizar_persona(persona)
-            if exito:
-                self.cargar_personas()
-                QMessageBox.information(self, "Éxito", f"✅ {persona['nombre']} {persona['apellido']} actualizada correctamente.")
-            else:
-                QMessageBox.critical(self, "Error al editar persona", f"❌ {error}")
+        dialogo.persona_actualizada.connect(self.on_persona_actualizada)
+        dialogo.exec()  # no necesitas hacer nada más acá; la señal se encarga
 
     def eliminar_persona(self):
         fila = self.tabla.currentRow()
@@ -129,7 +123,7 @@ class GestorPersonasDialog(QDialog):
             if exito:
                 self.cargar_personas()
                 # self.persona_eliminada.emit(persona_id)  # Señal opcional
-                QMessageBox.information(self, "Eliminación exitosa", f"✅ {persona['nombre']} {persona['apellido']} fue eliminada correctamente.")
+                QMessageBox.information(self, "Eliminación exitosa", f"✅ {persona['nombre']} {persona['apellido']}, eliminación exitosa.")
             else:
                 QMessageBox.critical(self, "Error al eliminar persona", f"❌ {error}")
         
@@ -145,3 +139,18 @@ class GestorPersonasDialog(QDialog):
         ]
         self.cargar_personas(filtradas)
 
+    def on_persona_actualizada(self, datos_persona: dict):
+        exito, error = actualizar_persona(datos_persona)
+        if exito:
+            self.cargar_personas()  # 🔁 Refresca la tabla
+            QMessageBox.information(
+                self,
+                "Persona actualizada",
+                f"✅ {datos_persona['nombre']} {datos_persona['apellido']}, actualización exitosa."
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                "Error",
+                f"⚠️ No se pudo actualizar a {datos_persona['nombre']} {datos_persona['apellido']}: {error}"
+            )

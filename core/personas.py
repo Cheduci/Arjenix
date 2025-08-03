@@ -149,9 +149,32 @@ def eliminar_persona_por_id(id_persona):
         return True, None  # opcional: señal de éxito
 
     except Exception as e:
-        print(f"❌ Error al eliminar persona: {str(e)}")
         return False, str(e)  # opcional: señal de error
 
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def actualizar_foto_persona(persona_id: int, foto_bytes: bytes):
+    try:
+        conn = conectar_db()
+        cur = conn.cursor()
+        if foto_bytes is not None:
+            cur.execute("""
+                UPDATE personas
+                SET foto = %s
+                WHERE id = %s;
+            """, (foto_bytes, persona_id))
+        else:
+            cur.execute("""
+                UPDATE personas
+                SET foto = NULL
+                WHERE id = %s;
+            """, (persona_id,))
+        conn.commit()
+        return True, None
+    except Exception as e:
+        return False, str(e)
     finally:
         if 'conn' in locals():
             conn.close()
