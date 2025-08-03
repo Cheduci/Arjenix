@@ -13,6 +13,7 @@ from dialogs.iniciar_venta import IniciarVentaDialog
 from dialogs.ver_bajostock import StockBajoDialog
 from dialogs.registrar_reposicion import RegistrarReposicionDialog
 from dialogs.reporte_diario import ReporteDiarioDialog
+from dialogs.gestor_personas import GestorPersonasDialog
 from helpers.mixin_cuenta import *
 from helpers.panel_base import *
 
@@ -300,9 +301,13 @@ class PanelDueño(PanelGerente):
         btn_crear.clicked.connect(self.abrir_crear_usuario)
         inner_usuarios.addWidget(btn_crear)
 
-        btn_gestionar = QPushButton("🛠️ Editar usuarios existentes")
+        btn_gestionar = QPushButton("🛠️ Gestionar usuarios")
         btn_gestionar.clicked.connect(self.abrir_gestor_usuarios)
         inner_usuarios.addWidget(btn_gestionar)
+
+        btn_personas = QPushButton("🧑‍🤝‍🧑 Gestionar personas")
+        btn_personas.clicked.connect(self.abrir_gestor_personas)
+        inner_usuarios.addWidget(btn_personas)
 
         box_usuarios.setLayout(inner_usuarios)
         layout.addWidget(box_usuarios)
@@ -340,13 +345,14 @@ class PanelDueño(PanelGerente):
     def abrir_gestion_categorias(self):
         dialogo = GestionarCategoriasDialog()
         dialogo.exec()
+    
+    def abrir_gestor_personas(self):
+        # Aquí llamás a la ventana o lógica que gestiona las personas
+        dialogo = GestorPersonasDialog(self)
+        dialogo.exec_()
 
-        
 
     # 📊 Menú “Administración” en MenuDueño busca estos métodos:
-    def gestionar_usuarios(self):
-        self.abrir_crear_usuario()  # O reemplazá con un panel más completo en el futuro
-
     def gestionar_roles(self):
         QMessageBox.information(self, "Roles", "🔐 Gestión de roles: próximamente.")
 

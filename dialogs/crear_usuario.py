@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 from core.personas import *
 from core.usuarios import *
 from core.roles import obtener_roles
-from dialogs.crear_persona import CrearPersonaDialog
+from dialogs.crear_persona import PersonaDialog
 import bcrypt
 from helpers.exportar import exportar_credenciales_basicas
 import os
@@ -107,14 +107,18 @@ class CrearUsuarioDialog(QDialog):
         )
 
         if respuesta == QMessageBox.Yes:
-            dialogo = CrearPersonaDialog()
+            dialogo = PersonaDialog()
             if dialogo.exec():
                 persona = dialogo.obtener_datos()
                 persona["username_sugerido"] = f"{persona['nombre'].lower()}.{persona['apellido'].lower()}"
-                persona_id = insertar_persona(persona)
-                self.persona_id = persona_id
-                self.mostrar_formulario_de_usuario_sobre(persona)
-                return True
+                persona_id, error = insertar_persona(persona)
+                if error is None:
+                    self.persona_id = persona_id
+                    self.mostrar_formulario_de_usuario_sobre(persona)
+                    return True
+                else:
+                    QMessageBox.critical(self, "Error al crear persona", f"❌ {error}")
+                    return False
             else:
                 return False
         else:

@@ -25,10 +25,25 @@ def obtener_personas_sin_usuario():
         for r in cur.fetchall()
     ]
 
-def dni_existe(dni: str) -> bool:
-    cur = conectar_db().cursor()
-    cur.execute("SELECT 1 FROM personas WHERE dni = %s", (dni,))
-    return bool(cur.fetchone())
+def dni_existe(dni: str, ignorar_id: int | None = None) -> bool:
+    conn = conectar_db()
+    cur = conn.cursor()
+
+    if ignorar_id is not None:
+        cur.execute(
+            "SELECT 1 FROM personas WHERE dni = %s AND id <> %s",
+            (dni, ignorar_id)
+        )
+    else:
+        cur.execute(
+            "SELECT 1 FROM personas WHERE dni = %s",
+            (dni,)
+        )
+
+    existe = bool(cur.fetchone())
+    conn.close()
+    return existe
+
 
 def insertar_persona(datos: dict) -> int | None:
     """
@@ -54,8 +69,89 @@ def insertar_persona(datos: dict) -> int | None:
         persona_id = cur.fetchone()[0]
         conn.commit()
         conn.close()
-        return persona_id
+        return persona_id, None
 
     except Exception as e:
-        print(f"❌ Error al insertar persona: {e}")
-        return None
+        return None, str(e)
+
+def obtener_personas_desde_db():
+    """
+    Obtiene una lista de todas las personas activas.
+    Retorna una lista de diccionarios con los campos: id, dni, nombre, apellido, email, fecha_nacimiento.
+    """
+    cur = conectar_db().cursor()
+    cur.execute("""
+        SELECT id, dni, nombre, apellido, email, fecha_nacimiento, foto
+        FROM personas
+        ORDER BY apellido, nombre
+    """)
+    return [
+        {
+            "id": r[0],
+            "dni": r[1],
+            "nombre": r[2],
+            "apellido": r[3],
+            "email": r[4],
+            "fecha_nacimiento": r[5],
+            "foto": r[6]
+        }
+        for r in cur.fetchall()
+    ]
+
+def actualizar_persona(datos: dict) -> tuple[bool, str | None]:
+    """
+    Actualiza los datos de una persona. `datos` debe contener: id, dni, nombre, apellido, email, fecha_nacimiento
+    Retorna True si fue exitoso, o un string con el error.
+    """
+    try:
+        # Verificar si el nuevo DNI ya existe en otro registro
+        if dni_existe(datos["dni"], ignorar_id=datos["id"]):
+            return "Ya existe otra persona registrada con ese DNI."
+
+        conn = conectar_db()
+        cur = conn.cursor()
+
+        # Actualizar los datos
+        cur.execute("""
+            UPDATE personas
+            SET dni = %s,
+                nombre = %s,
+                apellido = %s,
+                email = %s,
+                fecha_nacimiento = %s
+            WHERE id = %s
+        """, (
+            datos["dni"],
+            datos["nombre"],
+            datos["apellido"],
+            datos.get("email"),
+            datos["fecha_nacimiento"],
+            datos["id"]
+        ))
+
+        conn.commit()
+        conn.close()
+        return True, None
+
+    except Exception as e:
+        return False, str(e)
+
+def eliminar_persona_por_id(id_persona):
+    try:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM personas WHERE id = %s", (id_persona,))
+
+        if cursor.rowcount == 0:
+            raise ValueError(f"No se encontró ninguna persona con ID {id_persona}")
+
+        conn.commit()
+        return True, None  # opcional: señal de éxito
+
+    except Exception as e:
+        print(f"❌ Error al eliminar persona: {str(e)}")
+        return False, str(e)  # opcional: señal de error
+
+    finally:
+        if 'conn' in locals():
+            conn.close()
