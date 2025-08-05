@@ -20,7 +20,7 @@ class PersonaDialog(QDialog):
         
 
     def setup_ui(self):
-        main_layout = QHBoxLayout()
+        
         form_layout = QVBoxLayout()
 
         self.dni = QLineEdit(self.persona.get("dni", ""))
@@ -48,60 +48,13 @@ class PersonaDialog(QDialog):
 
         form_widget = QWidget()
         form_widget.setLayout(form_layout)
-        main_layout.addWidget(form_widget)
+        
 
-        if self.modo == "editar":
-            self.dni.setDisabled(True)
-            panel_foto = self.setup_foto_panel()
-            foto_widget = QWidget()
-            foto_widget.setLayout(panel_foto)
-            main_layout.addWidget(foto_widget)
+        # if self.modo == "editar":
+        #     self.dni.setDisabled(True)
+            
+        self.setLayout(form_layout)
 
-        self.setLayout(main_layout)
-
-    def setup_foto_panel(self):
-        panel = QVBoxLayout()
-
-        self.label_foto = QLabel()
-        self.label_foto.setFixedSize(128, 128)
-        self.label_foto.setAlignment(Qt.AlignCenter)
-        self.label_foto.setStyleSheet("""
-            QLabel {
-                border: 1px solid #ccc;
-                background-color: #f8f8f8;
-                font-size: 12pt;
-                color: #666;
-            }
-        """)
-
-        foto_data = self.persona.get("foto")
-        if foto_data:
-            pixmap = QPixmap()
-            pixmap.loadFromData(foto_data)
-            self.label_foto.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        else:
-            self.label_foto.setText("📷 Sin foto")
-
-        btn_cargar = QPushButton("📁 Cargar")
-        btn_cargar.clicked.connect(self.cargar_foto)
-
-        btn_sacar = QPushButton("📸 Sacar foto")
-        btn_sacar.clicked.connect(self.sacar_foto)
-
-        self.btn_eliminar_foto = QPushButton("🗑️ Eliminar")
-        self.btn_eliminar_foto.clicked.connect(self.eliminar_foto)
-        if not foto_data:
-            self.btn_eliminar_foto.setEnabled(False)
-
-        for btn in [btn_cargar, btn_sacar, self.btn_eliminar_foto]:
-            panel.addWidget(btn)
-
-        contenedor = QVBoxLayout()
-        contenedor.addWidget(self.label_foto)
-        contenedor.addLayout(panel)
-
-        return contenedor
-    
 
     def validar_y_aceptar(self):
         dni = self.dni.text().strip()
@@ -129,55 +82,9 @@ class PersonaDialog(QDialog):
             "fecha_nacimiento": self.fecha_nac.date().toPython()
         }
 
-        if self.modo == "editar":
-            self.datos_persona["id"] = self.persona["id"]
-            if self.persona["foto"] is not None:
-                actualizar_foto_persona(
-                    persona_id=self.persona["id"],  # o el ID nuevo si lo acabás de crear
-                    foto_bytes=self.persona["foto"]
-                )
-            else:
-                actualizar_foto_persona(
-                    persona_id=self.persona["id"],
-                    foto_bytes=None
-                )
+        
         self.persona_actualizada.emit(self.datos_persona)
         self.accept()
 
     def obtener_datos(self):
         return getattr(self, "datos_persona", None)
-
-    def cargar_foto(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Seleccionar imagen", "", "Imágenes (*.png *.jpg *.jpeg)")
-        if path:
-            pixmap = QPixmap(path)
-            self.label_foto.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-
-            # 🔁 Convertir el pixmap en bytes usando QBuffer
-            buffer = QBuffer()
-            buffer.open(QIODevice.WriteOnly)
-            pixmap.save(buffer, "PNG")  # También puede ser "JPG", pero PNG preserva transparencia
-            foto_bytes = bytes(buffer.data())
-
-            # 💾 Guardar en el diccionario de la persona
-            self.persona["foto"] = foto_bytes
-            self.btn_eliminar_foto.setEnabled(True)
-
-    def sacar_foto(self):
-        foto_bytes = capturar_foto()
-        if not foto_bytes:
-            QMessageBox.warning(self, "Captura cancelada", "No se pudo obtener la foto desde la cámara.")
-            return
-
-        pixmap = QPixmap()
-        pixmap.loadFromData(foto_bytes)
-        self.label_foto.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-
-        self.persona["foto"] = foto_bytes
-        self.btn_eliminar_foto.setEnabled(True)
-
-    def eliminar_foto(self):
-        self.label_foto.clear()
-        self.label_foto.setText("📷 Sin foto")
-        self.persona["foto"] = None
-        self.btn_eliminar_foto.setEnabled(False)

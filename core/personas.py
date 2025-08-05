@@ -178,3 +178,32 @@ def actualizar_foto_persona(persona_id: int, foto_bytes: bytes):
     finally:
         if 'conn' in locals():
             conn.close()
+
+def obtener_foto_persona(dni_persona: str):
+    try:
+        conn = conectar_db()
+        cur = conn.cursor()
+        cur.execute("SELECT foto FROM personas WHERE dni = %s", (dni_persona,))
+        foto_row = cur.fetchone()
+
+        if not foto_row or not foto_row[0]:  # Si es None o está vacío (b'')
+            return None, None
+        return foto_row[0], None
+    except Exception as e:
+        return None, f"Error al obtener foto de DNI {dni_persona}: {e}"
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
+def eliminar_foto_persona(persona_id: str):
+    try:
+        conn = conectar_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE personas SET foto = NULL WHERE id = %s", (persona_id,))
+        conn.commit()
+        return True, None
+    except Exception as e:
+        return False, f"Error al eliminar foto: {e}"
+    finally:
+        if 'conn' in locals():
+            conn.close()
