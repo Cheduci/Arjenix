@@ -61,6 +61,7 @@ class PersonaDialog(QDialog):
         nombre = self.nombre.text().strip()
         apellido = self.apellido.text().strip()
         email = self.email.text().strip()
+        person_id = self.persona.get("id")
 
         if not all([dni, nombre, apellido]):
             QMessageBox.warning(self, "Faltan datos", "DNI, nombre y apellido son obligatorios.")
@@ -75,6 +76,7 @@ class PersonaDialog(QDialog):
             return
 
         self.datos_persona = {
+            "id": person_id,
             "dni": dni,
             "nombre": nombre.title(),
             "apellido": apellido.title(),

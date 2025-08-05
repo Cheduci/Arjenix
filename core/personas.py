@@ -106,7 +106,7 @@ def actualizar_persona(datos: dict) -> tuple[bool, str | None]:
     try:
         # Verificar si el nuevo DNI ya existe en otro registro
         if dni_existe(datos["dni"], ignorar_id=datos["id"]):
-            return "Ya existe otra persona registrada con ese DNI."
+            return False, "Ya existe otra persona registrada con ese DNI."
 
         conn = conectar_db()
         cur = conn.cursor()
@@ -130,11 +130,13 @@ def actualizar_persona(datos: dict) -> tuple[bool, str | None]:
         ))
 
         conn.commit()
-        conn.close()
         return True, None
 
     except Exception as e:
         return False, str(e)
+    finally:
+        if 'conn' in locals():
+            conn.close()
 
 def eliminar_persona_por_id(id_persona):
     try:
