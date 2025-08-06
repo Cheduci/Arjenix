@@ -181,18 +181,18 @@ def actualizar_foto_persona(persona_id: int, foto_bytes: bytes):
         if 'conn' in locals():
             conn.close()
 
-def obtener_foto_persona(dni_persona: str):
+def obtener_foto_persona(persona_id: str):
     try:
         conn = conectar_db()
         cur = conn.cursor()
-        cur.execute("SELECT foto FROM personas WHERE dni = %s", (dni_persona,))
+        cur.execute("SELECT foto FROM personas WHERE id = %s", (persona_id,))
         foto_row = cur.fetchone()
 
         if not foto_row or not foto_row[0]:  # Si es None o está vacío (b'')
             return None, None
         return foto_row[0], None
     except Exception as e:
-        return None, f"Error al obtener foto de DNI {dni_persona}: {e}"
+        return None, f"Error al obtener foto de ID {persona_id}: {e}"
     finally:
         if 'conn' in locals():
             conn.close()

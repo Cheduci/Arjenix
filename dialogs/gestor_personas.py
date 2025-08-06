@@ -15,6 +15,7 @@ class GestorPersonasDialog(QDialog):
         self.setMinimumSize(800, 400)
         self.setup_ui()
         self.cargar_personas()
+        self.actualizar_estado_botones_foto()
 
     def setup_ui(self):
         main_layout = QHBoxLayout()
@@ -28,6 +29,7 @@ class GestorPersonasDialog(QDialog):
         self.tabla = QTableWidget()
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tabla.selectionModel().selectionChanged.connect(self.actualizar_estado_botones_foto)
         self.tabla.itemSelectionChanged.connect(self.seleccion_persona)
         self.central.addWidget(self.tabla)
 
@@ -52,6 +54,32 @@ class GestorPersonasDialog(QDialog):
         self.btn_editar.clicked.connect(self.editar_persona)
         self.btn_eliminar.clicked.connect(self.eliminar_persona)
 
+
+# --------------- Inicio Selección de persona
+    def seleccion_persona(self):
+        fila = self.tabla.currentRow()
+        if fila >= 0:
+            persona_id, tiene_foto = self.obtener_datos_de_persona_seleccionada()
+            self.actualizar_panel_foto(persona_id, tiene_foto)
+
+    def obtener_datos_de_persona_seleccionada(self):
+        fila = self.tabla.currentRow()
+        if fila < 0:
+            return None, None
+        item_dni = self.tabla.item(fila, 0)
+        tiene_foto = self.tabla.item(fila, 5).text() == "✅"
+        return item_dni.data(Qt.ItemDataRole.UserRole), tiene_foto
+
+    def actualizar_estado_botones_foto(self):
+        persona_id, _ = self.obtener_datos_de_persona_seleccionada()
+        habilitado = persona_id is not None
+        self.btn_cargar.setEnabled(habilitado)
+        self.btn_sacar.setEnabled(habilitado)
+
+# --------------- Fin Selección de persona
+
+# --------------- Inicio panel de foto
+
     def setup_foto_panel(self):
         panel = QVBoxLayout()
         self.label_foto = QLabel("📷 Sin foto")
@@ -66,35 +94,33 @@ class GestorPersonasDialog(QDialog):
             }
         """)
 
-        btn_cargar = QPushButton("📁 Cargar")
-        btn_cargar.clicked.connect(self.cargar_foto)
-        btn_sacar = QPushButton("📸 Sacar foto")
-        btn_sacar.clicked.connect(self.sacar_foto)
+        self.btn_cargar = QPushButton("📁 Cargar")
+        self.btn_cargar.clicked.connect(self.cargar_foto)
+        self.btn_sacar = QPushButton("📸 Sacar foto")
+        self.btn_sacar.clicked.connect(self.sacar_foto)
         self.btn_eliminar_foto = QPushButton("🗑️ Eliminar")
         self.btn_eliminar_foto.clicked.connect(self.eliminar_foto)
         self.btn_eliminar_foto.setEnabled(False)
 
         panel.addWidget(self.label_foto)
-        panel.addWidget(btn_cargar)
-        panel.addWidget(btn_sacar)
+        panel.addWidget(self.btn_cargar)
+        panel.addWidget(self.btn_sacar)
         panel.addWidget(self.btn_eliminar_foto)
 
         foto_widget = QWidget()
         foto_widget.setLayout(panel)
         return foto_widget
-
-    def obtener_persona_id_seleccionada(self):
-        fila = self.tabla.currentRow()
-        if fila < 0:
-            return None
-        item_dni = self.tabla.item(fila, 0)
-        return item_dni.data(Qt.ItemDataRole.UserRole)
-
-    def actualizar_panel_foto(self, persona):
-        foto_data = persona.get("foto")
-        if foto_data:
+    
+    def actualizar_panel_foto(self, persona_id, tiene_foto):
+        foto_byte = None
+        if tiene_foto:
+            foto_byte, error = obtener_foto_persona(persona_id)
+            if error:
+                QMessageBox.warning(self, "Error", error)
+                return
+        
             pixmap = QPixmap()
-            pixmap.loadFromData(foto_data)
+            pixmap.loadFromData(foto_byte)
             self.label_foto.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
             self.label_foto.setText("")
             self.btn_eliminar_foto.setEnabled(True)
@@ -102,28 +128,10 @@ class GestorPersonasDialog(QDialog):
             self.label_foto.clear()
             self.label_foto.setText("📷 Sin foto")
             self.btn_eliminar_foto.setEnabled(False)
-
-    def seleccion_persona(self):
-        fila = self.tabla.currentRow()
-        if fila >= 0:
-            persona = self.obtener_datos_de_persona(fila)
-            self.actualizar_panel_foto(persona)
-
-    def obtener_datos_de_persona(self, fila: int) -> dict:
-        dni = self.tabla.item(fila, 0).text()
-        nombre = self.tabla.item(fila, 1).text()
-        apellido = self.tabla.item(fila, 2).text()
-        tiene_foto = self.tabla.item(fila, 5).text() == "✅"
-        foto_byte = None
-        if tiene_foto:
-            foto_byte, error = obtener_foto_persona(dni)
-            if error:
-                QMessageBox.warning(self, "Error", error)
-                return {}
-        return {"nombre": nombre, "apellido": apellido, "dni": dni, "foto": foto_byte if tiene_foto else None}
+    
 
     def cargar_foto(self):
-        persona_id = self.obtener_persona_id_seleccionada()
+        persona_id, tiene_foto = self.obtener_datos_de_persona_seleccionada()
         if persona_id is None:
             QMessageBox.warning(self, "Seleccionar persona", "Por favor, seleccioná una persona para editar.")
             return
@@ -138,13 +146,14 @@ class GestorPersonasDialog(QDialog):
             ok, error = actualizar_foto_persona(persona_id, foto_bytes)
             if ok:
                 self.cargar_personas()
-                self.actualizar_panel_foto(self.obtener_datos_de_persona(self.tabla.currentRow()))
+                self.actualizar_panel_foto(persona_id, tiene_foto)
+                self.btn_eliminar_foto.setEnabled(True)
                 QMessageBox.information(self, "Foto actualizada", "✅ Foto actualizada correctamente.")
             else:
                 QMessageBox.critical(self, "Error al actualizar foto", f"❌ {error}")
 
     def sacar_foto(self):
-        persona_id = self.obtener_persona_id_seleccionada()
+        persona_id, _ = self.obtener_datos_de_persona_seleccionada()
         if persona_id is None:
             QMessageBox.warning(self, "Seleccionar persona", "Por favor, seleccioná una persona para editar.")
             return
@@ -154,15 +163,16 @@ class GestorPersonasDialog(QDialog):
             return
         ok, error = actualizar_foto_persona(persona_id, foto_bytes)
         if ok:
+            tiene_foto = True
             self.cargar_personas()
-            self.actualizar_panel_foto(self.obtener_datos_de_persona(self.tabla.currentRow()))
+            self.actualizar_panel_foto(persona_id, tiene_foto)
             self.btn_eliminar_foto.setEnabled(True)
             QMessageBox.information(self, "Foto capturada", "✅ Foto capturada y actualizada correctamente.")
         else:
             QMessageBox.critical(self, "Error al actualizar foto", f"❌ {error}")
 
     def eliminar_foto(self):
-        persona_id = self.obtener_persona_id_seleccionada()
+        persona_id, _ = self.obtener_datos_de_persona_seleccionada()
         if persona_id is None:
             QMessageBox.warning(self, "Seleccionar persona", "Por favor, seleccioná una persona para editar.")
             return
@@ -172,10 +182,14 @@ class GestorPersonasDialog(QDialog):
             self.label_foto.setText("📷 Sin foto")
             self.btn_eliminar_foto.setEnabled(False)
             self.cargar_personas()
+            self.actualizar_panel_foto(persona_id, False)
             QMessageBox.information(self, "Foto eliminada", "✅ Foto eliminada correctamente.")
         else:
             QMessageBox.critical(self, "Error al eliminar foto", f"❌ {error}")
 
+# --------------- Fin panel de foto
+
+# --------------- Inicio gestión de personas
     def cargar_personas(self, personas=None):
         if personas is None:
             self.todas_las_personas = obtener_personas_desde_db()
@@ -214,7 +228,7 @@ class GestorPersonasDialog(QDialog):
                 QMessageBox.critical(self, "Error al crear persona", f"❌ {error}")
 
     def editar_persona(self):
-        persona_id = self.obtener_persona_id_seleccionada()
+        persona_id, _ = self.obtener_datos_de_persona_seleccionada()
         if persona_id is None:
             QMessageBox.warning(self, "Seleccionar persona", "Por favor, seleccioná una persona para editar.")
             return
@@ -227,7 +241,7 @@ class GestorPersonasDialog(QDialog):
         dialogo.exec()
 
     def eliminar_persona(self):
-        persona_id = self.obtener_persona_id_seleccionada()
+        persona_id, _ = self.obtener_datos_de_persona_seleccionada()
         if persona_id is None:
             QMessageBox.warning(self, "Seleccionar persona", "Por favor, seleccioná una persona para eliminar.")
             return
@@ -275,3 +289,5 @@ class GestorPersonasDialog(QDialog):
                 "Error",
                 f"⚠️ No se pudo actualizar a {datos_persona['nombre']} {datos_persona['apellido']}: {error}"
             )
+
+# --------------- Fin gestión de personas
