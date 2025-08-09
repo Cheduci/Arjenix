@@ -9,7 +9,7 @@ def escanear_codigo_opencv():
         QMessageBox.warning(None, "Cámara no disponible", "No se pudo acceder a la cámara.")
         return None
 
-    print("📷 Escaneando... Presione ESC para cancelar.")
+    # print("📷 Escaneando... Presione ESC para cancelar.")
     codigo_detectado = None
 
     while True:

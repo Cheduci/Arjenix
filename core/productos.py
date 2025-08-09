@@ -130,6 +130,7 @@ def obtener_producto_por_codigo(codigo: str) -> dict | None:
 
         cur.execute("""
             SELECT
+                p.id,
                 p.nombre,
                 p.codigo_barra,
                 COALESCE(p.descripcion, ''),
@@ -150,16 +151,17 @@ def obtener_producto_por_codigo(codigo: str) -> dict | None:
 
         if fila:
             return {
-                "nombre": fila[0],
-                "codigo_barra": fila[1],
-                "descripcion": fila[2],
-                "categoria": fila[3],
-                "stock_actual": fila[4],
-                "stock_minimo": fila[5],
-                "precio_compra": float(fila[6]),
-                "precio_venta": float(fila[7]),
-                "estado": fila[8],
-                "foto": fila[9]
+                "id": fila[0],
+                "nombre": fila[1],
+                "codigo_barra": fila[2],
+                "descripcion": fila[3],
+                "categoria": fila[4],
+                "stock_actual": fila[5],
+                "stock_minimo": fila[6],
+                "precio_compra": float(fila[7]),
+                "precio_venta": float(fila[8]),
+                "estado": fila[9],
+                "foto": fila[10]
             }
         return None
     except Exception as e:
@@ -427,3 +429,21 @@ def obtener_productos_con_stock_bajo(self, umbral=None):
     except Exception as e:
         raise ErrorStockBajo(f"No se pudo obtener productos con stock bajo: {e}")
     
+    finally:
+        if conn:
+            conn.close()
+
+def guardar_codigo(codigo,id_producto):
+    try:
+        conn = db_config.conectar_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE productos SET codigo_barra = %s WHERE id = %s", (codigo, id_producto))
+        conn.commit()
+        conn.close()
+        return True, None
+    except Exception as e:
+        print(f"Error al guardar código: {e}")
+        return False, str(e)
+    finally:
+        if conn:
+            conn.close()

@@ -89,6 +89,12 @@ CREATE TABLE IF NOT EXISTS configuracion_empresa (
     logo BYTEA
 );
 
+-- Tabla configuración de sistema
+CREATE TABLE configuracion_sistema (
+    clave TEXT PRIMARY KEY,
+    valor TEXT
+);
+
 -- 📦 Registro de aplicaciones instaladas en el ecosistema
 CREATE TABLE IF NOT EXISTS sistema_aplicaciones (
     id SERIAL PRIMARY KEY,
@@ -115,6 +121,11 @@ INSERT INTO roles (nombre, descripcion) VALUES
   ('vendedor', 'Realiza ventas y consulta stock'),
   ('repositor', 'Carga stock y gestiona inventario')
 ON CONFLICT (nombre) DO NOTHING;
+
+-- Insertar configuracion inicial de sistema
+INSERT INTO configuracion_sistema (clave, valor)
+VALUES ('modo_codigo_barra', 'mixto')
+ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor;
 
 -- Insertar Arjenix como aplicación activa
 INSERT INTO sistema_aplicaciones (nombre, version)

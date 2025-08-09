@@ -6,21 +6,24 @@ from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtCore import Qt, Signal
 from core import productos
 from modulos import camara
-import os
+from helpers.dialogos import obtener_codigo
+from typing import Literal
 from helpers.exportar import exportar_codigo_pdf
 
 class FichaProductoDialog(QDialog):
     producto_actualizado = Signal()
-    
-    def __init__(self, sesion: dict, codigo: str):
+
+    def __init__(self, sesion: dict, config_sistema: dict, codigo: str):
         super().__init__()
         self.sesion = sesion
+        self.config_sistema = config_sistema
         self.codigo = codigo
         self.setWindowTitle(f"📄 Ficha del producto — {codigo}")
         self.setMinimumSize(600, 400)
         self.mensaje_mostrado = False
         self.setup_ui()
         self.cargar_datos()
+        self.codigo_confirmado = None
 
     def setup_ui(self):
         # Layout principal: horizontal (izquierda contenido, derecha acciones)
@@ -112,6 +115,31 @@ class FichaProductoDialog(QDialog):
         # 🛠️ Grupo: Acciones disponibles
         acciones_group = QGroupBox("⚙️ Acciones")
         self.acciones_layout = QVBoxLayout()
+
+        # Grupo: Códigos de barras
+        self.codigo_barra_group = QGroupBox("📑 Código de barras")
+
+        self.label_codigo_confirmado = QLabel(f"🆔 Código actual: {self.codigo}")
+        self.label_codigo_confirmado.setStyleSheet("font-weight: bold; color: #333; padding: 4px;")
+        
+        self.botones_codigos = QHBoxLayout()
+        self.btn_escanear = QPushButton("📷 Escanear")
+        self.btn_manual = QPushButton("✍️ Ingresar")
+        self.btn_manual.clicked.connect(lambda: self._manejar_codigo("manual"))
+        self.btn_escanear.clicked.connect(lambda: self._manejar_codigo("escanear"))
+        self.botones_codigos.addWidget(self.btn_escanear)
+        self.botones_codigos.addWidget(self.btn_manual)
+        
+        self.btn_guardar_codigo = QPushButton("💾 Guardar código")
+        self.btn_guardar_codigo.clicked.connect(self.guardar_codigo)
+        layout_codigo = QVBoxLayout()
+        layout_codigo.addWidget(self.label_codigo_confirmado)
+        layout_codigo.addLayout(self.botones_codigos)
+        layout_codigo.addWidget(self.btn_guardar_codigo)
+
+        self.codigo_barra_group.setLayout(layout_codigo)
+
+        # 
         self.btn_guardar_stock = QPushButton("💾 Actualizar stock")
         self.btn_guardar_precios = QPushButton("💾 Actualizar precios")
         self.btn_estado = QPushButton()
@@ -232,9 +260,13 @@ class FichaProductoDialog(QDialog):
             self.acciones_layout.addWidget(self.btn_estado)
             self.label_stock_minimo.show()
             self.campo_stock_minimo.show()
+            if self.config_sistema.get("modo_codigo_barra") != "auto":
+                self.acciones_layout.addWidget(self.codigo_barra_group)
+            # self.codigo_barra_group.setVisible(True)
         else:
             self.label_stock_minimo.hide()
             self.campo_stock_minimo.hide()
+            # self.codigo_barra_group.setVisible(False)
 
         if rol == "dueño":
             self.campo_stock.setEnabled(True)
@@ -363,3 +395,22 @@ class FichaProductoDialog(QDialog):
         if foto:
             self.foto_bytes = foto
             self.actualizar_foto(self.foto_bytes)
+
+    def _manejar_codigo(self, modo: Literal["manual", "escanear"]):
+        codigo = obtener_codigo(self, modo, self.codigo_confirmado)
+        if codigo:
+            self.codigo_confirmado = codigo
+            self.label_codigo_confirmado.setText(f"🆔 Código: {codigo}")
+
+    def guardar_codigo(self):
+        if self.codigo_confirmado:
+            ok,error = productos.guardar_codigo(self.codigo_confirmado, id_producto=self.producto["id"])
+            if ok:
+                self.codigo = self.codigo_confirmado
+                self.cargar_datos()  # Recargar datos para mostrar el nuevo código
+                self.producto_actualizado.emit()
+                QMessageBox.information(self, "Código guardado", "✅ El código fue guardado exitosamente.")
+            else:
+                QMessageBox.warning(self, "Error", f"⚠️ No se pudo guardar el código.\nDetalles: {error}")
+        else:
+            QMessageBox.warning(self, "Sin código", "⚠️ No hay ningún código para guardar.")

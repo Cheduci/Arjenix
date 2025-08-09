@@ -7,9 +7,10 @@ from core import productos as pd
 from dialogs.ficha_producto import FichaProductoDialog
 
 class VerProductosDialog(QDialog):
-    def __init__(self, sesion: dict):
+    def __init__(self, sesion: dict, config_sistema: dict):
         super().__init__()
         self.sesion = sesion
+        self.config_sistema = config_sistema
         self.setWindowTitle("📋 Todos los productos")
         self.setMinimumSize(720, 500)
         self.setup_ui()
@@ -70,7 +71,7 @@ class VerProductosDialog(QDialog):
 
     def abrir_ficha_producto(self, fila, _col):
         codigo = self.tabla.item(fila, 1).text()
-        dialogo = FichaProductoDialog(self.sesion, codigo)
+        dialogo = FichaProductoDialog(self.sesion, self.config_sistema, codigo)
         dialogo.producto_actualizado.connect(self.cargar_datos)
         dialogo.exec()
         

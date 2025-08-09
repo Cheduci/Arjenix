@@ -7,41 +7,47 @@ from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtCore import Qt
 from core import productos
 from modulos import camara
-import os
+from helpers.dialogos import obtener_codigo
+from typing import Literal
 
 class AprobarProductoDialog(QDialog):
-    def __init__(self, sesion: dict, codigo: str):
+    def __init__(self, sesion: dict, config_sistema: dict, codigo: str):
         super().__init__()
         self.sesion = sesion
+        self.config_sistema = config_sistema
         self.codigo = codigo
         self.setWindowTitle("✅ Aprobar producto")
         self.setMinimumSize(600, 500)
         self.setup_ui()
         self.cargar_datos()
+        self.codigo_confirmado = None
 
     def setup_ui(self):
-        layout = QVBoxLayout()
+        layout_principal = QHBoxLayout()
+
+        layout_formulario = QVBoxLayout()
+
 
         # 🔤 Nombre
-        layout.addWidget(QLabel("Nombre:"))
+        layout_formulario.addWidget(QLabel("Nombre:"))
         self.nombre = QLineEdit()
-        layout.addWidget(self.nombre)
+        layout_formulario.addWidget(self.nombre)
 
         # 📝 Descripción
-        layout.addWidget(QLabel("Descripción:"))
+        layout_formulario.addWidget(QLabel("Descripción:"))
         self.descripcion = QTextEdit()
         self.descripcion.setMaximumHeight(60)  # Puedes ajustar este valor según prefieras
-        layout.addWidget(self.descripcion)
+        layout_formulario.addWidget(self.descripcion)
 
         # 🏷️ Categoría
-        layout.addWidget(QLabel("Categoría:"))
+        layout_formulario.addWidget(QLabel("Categoría:"))
         hbox_categoria = QHBoxLayout()
         self.categoria = QComboBox()
         btn_nueva_categoria = QPushButton("➕ Nueva")
         btn_nueva_categoria.clicked.connect(self.crear_categoria)
         hbox_categoria.addWidget(self.categoria)
         hbox_categoria.addWidget(btn_nueva_categoria)
-        layout.addLayout(hbox_categoria)
+        layout_formulario.addLayout(hbox_categoria)
         self.cargar_categorias()
         
         # Agrupar horizontalmente precio de compra, precio de venta y stock mínimo
@@ -76,11 +82,11 @@ class AprobarProductoDialog(QDialog):
         hbox_precios_stock.addLayout(vbox_stock)
         
         # Agregar el layout horizontal al layout principal
-        layout.addLayout(hbox_precios_stock)
+        layout_formulario.addLayout(hbox_precios_stock)
         
 
         # 🖼️ Imagen del producto
-        layout.addWidget(QLabel("Imagen del producto:"))
+        layout_formulario.addWidget(QLabel("Imagen del producto:"))
 
         # Previsualización centrada
         self.label_imagen = QLabel("📷 Sin imagen")
@@ -94,7 +100,7 @@ class AprobarProductoDialog(QDialog):
 
         # 🪄 Estilo fluido y expandible
         self.label_imagen.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        layout.addWidget(self.label_imagen, stretch=1)
+        layout_formulario.addWidget(self.label_imagen, stretch=1)
 
         # 🎛️ Botones: Examinar y Capturar
         hbox_foto = QHBoxLayout()
@@ -104,15 +110,41 @@ class AprobarProductoDialog(QDialog):
         self.btn_capturar.clicked.connect(self.capturar_desde_camara)
         hbox_foto.addWidget(self.btn_examinar)
         hbox_foto.addWidget(self.btn_capturar)
-        layout.addLayout(hbox_foto)
+        layout_formulario.addLayout(hbox_foto)
 
         # ✅ Botón aprobar
-        layout.addStretch()
+        layout_formulario.addStretch()
         self.btn_aprobar = QPushButton("✅ Aprobar producto")
         self.btn_aprobar.clicked.connect(self.aprobar_producto)
-        layout.addWidget(self.btn_aprobar)
+        layout_formulario.addWidget(self.btn_aprobar)
 
-        self.setLayout(layout)
+
+        # 🔍 Barra lateral para ingreso de código
+        layout_lateral = QVBoxLayout()
+
+        self.label_codigo_confirmado = QLabel(f"🆔 Código actual: {self.codigo}")
+        self.label_codigo_confirmado.setStyleSheet("font-weight: bold; color: #333; padding: 4px;")
+
+        botones = QHBoxLayout()
+        self.btn_escanear = QPushButton("📷 Escanear")
+        self.btn_manual = QPushButton("✍️ Ingresar")
+        # Conexiones usando lambdas para pasar `self` como parent
+        self.btn_manual.clicked.connect(lambda: self._manejar_codigo("manual"))
+        self.btn_escanear.clicked.connect(lambda: self._manejar_codigo("escanear"))
+
+        botones.addWidget(self.btn_escanear)
+        botones.addWidget(self.btn_manual)
+
+        layout_lateral.addWidget(self.label_codigo_confirmado)
+        layout_lateral.addSpacing(10)
+        layout_lateral.addLayout(botones)
+        layout_lateral.addStretch()
+
+
+        layout_principal.addLayout(layout_formulario, stretch=3)
+        if self.config_sistema.get("modo_codigo_barra") != "auto":
+            layout_principal.addLayout(layout_lateral, stretch=1)
+        self.setLayout(layout_principal)
 
     def crear_categoria(self):
         nombre, ok = QInputDialog.getText(self, "Nueva categoría", "Nombre de la categoría:")
@@ -147,6 +179,15 @@ class AprobarProductoDialog(QDialog):
             self.label_imagen.setPixmap(QPixmap(ruta).scaled(200, 200, Qt.KeepAspectRatio))
 
     def aprobar_producto(self):
+        modo = self.config_sistema.get("modo_codigo_barra", "mixto")
+
+        if modo not in {"auto", "manual", "mixto"}:
+            QMessageBox.critical(self, "Error de configuración", "⚠️ El modo de código de barra no está definido correctamente.")
+            return
+        
+        if self.codigo_confirmado is not None:
+            self.codigo = self.codigo_confirmado
+            
         nombre = self.nombre.text().strip().capitalize()
         descripcion = self.descripcion.toPlainText().strip().capitalize()
         categoria = self.categoria.currentText()
@@ -191,4 +232,9 @@ class AprobarProductoDialog(QDialog):
             image = QImage.fromData(foto)
             self.label_imagen.setPixmap(QPixmap.fromImage(image).scaled(200, 200, Qt.KeepAspectRatio))
 
-    
+    def _manejar_codigo(self, modo: Literal["manual", "escanear"]):
+        codigo = obtener_codigo(self, modo, self.codigo_confirmado)
+        if codigo:
+            self.codigo_confirmado = codigo
+            self.label_codigo_confirmado.setText(f"🆔 Código: {codigo}")
+

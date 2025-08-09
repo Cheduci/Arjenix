@@ -14,6 +14,7 @@ from dialogs.ver_bajostock import StockBajoDialog
 from dialogs.registrar_reposicion import RegistrarReposicionDialog
 from dialogs.reporte_diario import ReporteDiarioDialog
 from dialogs.gestor_personas import GestorPersonasDialog
+from dialogs.preferencias_sistema_config import PreferenciasSistemaDialog
 from helpers.mixin_cuenta import *
 from helpers.panel_base import *
 
@@ -182,7 +183,7 @@ class PanelGerente(PanelRepositor, PanelVendedor):
         layout.addWidget(box)
 
     def gestionar_pendientes(self):
-        visor = PendientesDeAprobacion(self.sesion)
+        visor = PendientesDeAprobacion(self.sesion, self.config_sistema)
         visor.exec()
 
     def ver_estadisticas(self):
@@ -199,11 +200,11 @@ class PanelGerente(PanelRepositor, PanelVendedor):
 
 
 class PanelAjustesSistema(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, sesion, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout()
         self.setLayout(layout)
-
+        self.sesion = sesion
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
 
@@ -211,7 +212,7 @@ class PanelAjustesSistema(QWidget):
         inner_config = QVBoxLayout()
         inner_config.addStretch()
 
-        btn_preferencias = QPushButton("🧩 Preferencias de usuario")
+        btn_preferencias = QPushButton("🧩 Preferencias de sistema")
         btn_preferencias.clicked.connect(self.abrir_preferencias)
         inner_config.addWidget(btn_preferencias)
         inner_config.addStretch()
@@ -231,7 +232,13 @@ class PanelAjustesSistema(QWidget):
 
 
     def abrir_preferencias(self):
-        QMessageBox.information(self, "Preferencias", "Abrir diálogo de preferencias.")
+        dialog = PreferenciasSistemaDialog(self.sesion, self)
+        dialog.preferencias_actualizadas.connect(self.actualizar_sesion)
+        dialog.exec_()
+
+    def actualizar_sesion(self, cambios):
+        self.sesion.update(cambios)
+        # Podés recargar algún componente si es necesario
 
     def cambiar_tema(self):
         QMessageBox.information(self, "Tema visual", "Funcionalidad de tema aún no implementada.")
@@ -247,6 +254,7 @@ class PanelDueño(PanelGerente):
         super().__init__(sesion, router)
         self.sesion = sesion
         self.router = router
+        self.modo_codigo_barra = self.config_sistema.get("modo_codigo_barra", "mixto")
 
     def titulo_ventana(self):
         return "👑 Panel de Dueño"
@@ -278,7 +286,7 @@ class PanelDueño(PanelGerente):
         inner.addWidget(panel_duenio)
 
         # 🛠️ Panel Ajustes
-        panel_ajustes = PanelAjustesSistema()
+        panel_ajustes = PanelAjustesSistema(sesion=self.sesion, parent=self)
         inner.addWidget(panel_ajustes)
 
         # Columna repositor

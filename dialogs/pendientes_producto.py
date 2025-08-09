@@ -6,9 +6,10 @@ from core.productos import *
 from dialogs.aprobar_producto import AprobarProductoDialog
 
 class PendientesDeAprobacion(QDialog):
-    def __init__(self, sesion: dict):
+    def __init__(self, sesion: dict, config_sistema: dict):
         super().__init__()
         self.sesion = sesion
+        self.config_sistema = config_sistema
         self.setWindowTitle("🟡 Productos pendientes de aprobación")
         self.setMinimumSize(720, 440)
         self.setup_ui()
@@ -80,7 +81,7 @@ class PendientesDeAprobacion(QDialog):
 
     def aprobar_producto(self, fila, _col):
         codigo = self.tabla.item(fila, 1).text()
-        dialogo = AprobarProductoDialog(self.sesion, codigo)
+        dialogo = AprobarProductoDialog(self.sesion, self.config_sistema, codigo)
         if dialogo.exec():
             self.cargar_productos()
     

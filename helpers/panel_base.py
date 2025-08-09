@@ -3,6 +3,7 @@ from helpers.encabezado_widget import EncabezadoWidget
 from helpers.mixin_cuenta import *
 from dialogs.buscar_producto import BuscarProductoDialog
 from dialogs.ver_productos import VerProductosDialog
+from core.configuracion import obtener_configuracion_sistema
 
 class BasePanel(QMainWindow, MixinCuentaUsuario):
     def __init__(self, sesion: dict, router=None):
@@ -13,6 +14,7 @@ class BasePanel(QMainWindow, MixinCuentaUsuario):
         self.setWindowTitle(self.titulo_ventana())
         self._inicializar_ui()
         self.showMaximized()
+        self.config_sistema = obtener_configuracion_sistema()
 
 
     def _inicializar_ui(self):
@@ -62,5 +64,5 @@ class BasePanel(QMainWindow, MixinCuentaUsuario):
         dialogo.exec()
 
     def ver_todos_los_productos(self):
-        dialogo = VerProductosDialog(self.sesion)
+        dialogo = VerProductosDialog(self.sesion, self.config_sistema)
         dialogo.exec()
