@@ -14,7 +14,7 @@ from dialogs.ver_bajostock import StockBajoDialog
 from dialogs.registrar_reposicion import RegistrarReposicionDialog
 from dialogs.reporte_diario import ReporteDiarioDialog
 from dialogs.gestor_personas import GestorPersonasDialog
-from dialogs.preferencias_sistema_config import PreferenciasSistemaDialog
+from dialogs.configuracion_sistema import ConfiguracionSistemaDialog
 from helpers.mixin_cuenta import *
 from helpers.panel_base import *
 
@@ -35,9 +35,10 @@ def crear_box_productos(parent):
     return box_productos
 
 class PanelVendedor(BasePanel):
-    def __init__(self, sesion):
-        super().__init__(sesion)
+    def __init__(self, sesion, router=None):
+        super().__init__(sesion, router)
         self.sesion = sesion
+        self.router = router
 
     def titulo_ventana(self):
         return "🛒 Panel de Vendedor"
@@ -57,6 +58,8 @@ class PanelVendedor(BasePanel):
 
         box_ventas.setLayout(inner)
         layout.addWidget(box_ventas)
+
+
     
     def iniciar_venta(self):
         dialogo = IniciarVentaDialog(self.sesion)
@@ -65,10 +68,11 @@ class PanelVendedor(BasePanel):
 
 
 class PanelRepositor(BasePanel):
-    def __init__(self, sesion, standalone=True):
+    def __init__(self, sesion, router=None, standalone=True):
         self.standalone = standalone
-        super().__init__(sesion)
+        super().__init__(sesion, router)
         self.sesion = sesion
+        self.router = router
 
     def titulo_ventana(self):
         return "📦 Panel de Repositor"
@@ -99,6 +103,8 @@ class PanelRepositor(BasePanel):
         box.setLayout(inner)
         layout.addWidget(box)
 
+
+
     def alta_producto(self):
         dialogo = AltaProductoDialog(self.sesion)
         dialogo.exec()
@@ -120,7 +126,7 @@ class PanelRepositor(BasePanel):
         
 class PanelGerente(PanelRepositor, PanelVendedor):
     def __init__(self, sesion, router=None):
-        PanelRepositor.__init__(self, sesion, standalone=False)
+        PanelRepositor.__init__(self, sesion, router, standalone=False)
         self.sesion = sesion
         self.router = router
 
@@ -153,6 +159,8 @@ class PanelGerente(PanelRepositor, PanelVendedor):
         box.setLayout(inner)
         layout.addWidget(box)
 
+
+
     def contenido_vendedor(self, layout: QVBoxLayout):
         PanelVendedor.contenido_principal(self, layout)
 
@@ -181,6 +189,7 @@ class PanelGerente(PanelRepositor, PanelVendedor):
 
         box.setLayout(inner)
         layout.addWidget(box)
+        
 
     def gestionar_pendientes(self):
         visor = PendientesDeAprobacion(self.sesion, self.config_sistema)
@@ -200,11 +209,12 @@ class PanelGerente(PanelRepositor, PanelVendedor):
 
 
 class PanelAjustesSistema(QWidget):
-    def __init__(self, sesion, parent=None):
+    def __init__(self, sesion, config_sistema, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout()
         self.setLayout(layout)
         self.sesion = sesion
+        self.config_sistema = config_sistema
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
 
@@ -212,9 +222,9 @@ class PanelAjustesSistema(QWidget):
         inner_config = QVBoxLayout()
         inner_config.addStretch()
 
-        btn_preferencias = QPushButton("🧩 Preferencias de sistema")
-        btn_preferencias.clicked.connect(self.abrir_preferencias)
-        inner_config.addWidget(btn_preferencias)
+        btn_configuracion = QPushButton("🧩 Configuración de sistema")
+        btn_configuracion.clicked.connect(self.abrir_configuracion)
+        inner_config.addWidget(btn_configuracion)
         inner_config.addStretch()
 
         btn_backup = QPushButton("💾 Respaldar base de datos")
@@ -231,14 +241,15 @@ class PanelAjustesSistema(QWidget):
         layout.addWidget(box_config)
 
 
-    def abrir_preferencias(self):
-        dialog = PreferenciasSistemaDialog(self.sesion, self)
-        dialog.preferencias_actualizadas.connect(self.actualizar_sesion)
+    def abrir_configuracion(self):
+        # 🔄 Conectar señal
+        config_signals.configuracion_actualizada.connect(self.actualizar_configuracion)
+
+        dialog = ConfiguracionSistemaDialog(self.sesion, self.config_sistema, self)
         dialog.exec_()
 
-    def actualizar_sesion(self, cambios):
-        self.sesion.update(cambios)
-        # Podés recargar algún componente si es necesario
+    def actualizar_configuracion(self):
+        self.config_sistema = obtener_configuracion_sistema()
 
     def cambiar_tema(self):
         QMessageBox.information(self, "Tema visual", "Funcionalidad de tema aún no implementada.")
@@ -249,12 +260,11 @@ class PanelAjustesSistema(QWidget):
     def activar_mantenimiento(self):
         QMessageBox.information(self, "Mantenimiento", "Modo mantenimiento activado.")
 
-class PanelDueño(PanelGerente):
+class PanelDuegno(PanelGerente):
     def __init__(self, sesion, router=None):
         super().__init__(sesion, router)
         self.sesion = sesion
         self.router = router
-        self.modo_codigo_barra = self.config_sistema.get("modo_codigo_barra", "mixto")
 
     def titulo_ventana(self):
         return "👑 Panel de Dueño"
@@ -286,7 +296,7 @@ class PanelDueño(PanelGerente):
         inner.addWidget(panel_duenio)
 
         # 🛠️ Panel Ajustes
-        panel_ajustes = PanelAjustesSistema(sesion=self.sesion, parent=self)
+        panel_ajustes = PanelAjustesSistema(sesion=self.sesion, config_sistema=self.config_sistema, parent=self)
         inner.addWidget(panel_ajustes)
 
         # Columna repositor

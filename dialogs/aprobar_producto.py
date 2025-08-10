@@ -11,16 +11,17 @@ from helpers.dialogos import obtener_codigo
 from typing import Literal
 
 class AprobarProductoDialog(QDialog):
-    def __init__(self, sesion: dict, config_sistema: dict, codigo: str):
+    def __init__(self, sesion: dict, config_sistema: dict, codigo: str, item_id):
         super().__init__()
         self.sesion = sesion
         self.config_sistema = config_sistema
         self.codigo = codigo
+        self.codigo_confirmado = None
+        self.item_id = item_id
         self.setWindowTitle("✅ Aprobar producto")
         self.setMinimumSize(600, 500)
         self.setup_ui()
         self.cargar_datos()
-        self.codigo_confirmado = None
 
     def setup_ui(self):
         layout_principal = QHBoxLayout()
@@ -29,18 +30,18 @@ class AprobarProductoDialog(QDialog):
 
 
         # 🔤 Nombre
-        layout_formulario.addWidget(QLabel("Nombre:"))
+        layout_formulario.addWidget(QLabel("Nombre*:"))
         self.nombre = QLineEdit()
         layout_formulario.addWidget(self.nombre)
 
         # 📝 Descripción
-        layout_formulario.addWidget(QLabel("Descripción:"))
+        layout_formulario.addWidget(QLabel("Descripción*:"))
         self.descripcion = QTextEdit()
         self.descripcion.setMaximumHeight(60)  # Puedes ajustar este valor según prefieras
         layout_formulario.addWidget(self.descripcion)
 
         # 🏷️ Categoría
-        layout_formulario.addWidget(QLabel("Categoría:"))
+        layout_formulario.addWidget(QLabel("Categoría*:"))
         hbox_categoria = QHBoxLayout()
         self.categoria = QComboBox()
         btn_nueva_categoria = QPushButton("➕ Nueva")
@@ -65,7 +66,7 @@ class AprobarProductoDialog(QDialog):
         
         # 💸 Precio de venta
         vbox_venta = QVBoxLayout()
-        vbox_venta.addWidget(QLabel("Precio de venta:"))
+        vbox_venta.addWidget(QLabel("Precio de venta*:"))
         self.precio_venta = QDoubleSpinBox()
         self.precio_venta.setPrefix("$")
         self.precio_venta.setMaximum(999999999)
@@ -122,7 +123,10 @@ class AprobarProductoDialog(QDialog):
         # 🔍 Barra lateral para ingreso de código
         layout_lateral = QVBoxLayout()
 
-        self.label_codigo_confirmado = QLabel(f"🆔 Código actual: {self.codigo}")
+        if self.config_sistema.get("modo_codigo_barra") == "manual" and self.codigo_confirmado is None:
+            self.label_codigo_confirmado = QLabel(f"🆔 CÓDIGO PENDIENTE")
+        else:
+            self.label_codigo_confirmado = QLabel(f"🆔 Código actual: {self.codigo}")
         self.label_codigo_confirmado.setStyleSheet("font-weight: bold; color: #333; padding: 4px;")
 
         botones = QHBoxLayout()
@@ -163,7 +167,7 @@ class AprobarProductoDialog(QDialog):
 
 
     def cargar_datos(self):
-        producto = productos.obtener_producto_por_codigo(self.codigo)
+        producto = productos.obtener_producto_por_id(self.item_id)
         if not producto:
             QMessageBox.critical(self, "Error", "Producto no encontrado.")
             self.reject()
@@ -179,14 +183,22 @@ class AprobarProductoDialog(QDialog):
             self.label_imagen.setPixmap(QPixmap(ruta).scaled(200, 200, Qt.KeepAspectRatio))
 
     def aprobar_producto(self):
+        # Lógica de codigo de barra
         modo = self.config_sistema.get("modo_codigo_barra", "mixto")
-
+        # si el modo no es válido, mostrar error
         if modo not in {"auto", "manual", "mixto"}:
             QMessageBox.critical(self, "Error de configuración", "⚠️ El modo de código de barra no está definido correctamente.")
             return
-        
+        # Si está en modo manual y no se ha confirmado el código
+        if modo == "manual" and self.codigo_confirmado is None:
+            QMessageBox.warning(self, "Código no ingresado", "⚠️ Debes escanear o ingresar el código del producto.")
+            return
+        # Si se ingresó código, guardar para aprobación
         if self.codigo_confirmado is not None:
             self.codigo = self.codigo_confirmado
+
+
+
             
         nombre = self.nombre.text().strip().capitalize()
         descripcion = self.descripcion.toPlainText().strip().capitalize()
@@ -200,7 +212,7 @@ class AprobarProductoDialog(QDialog):
         # 📸 Imagen como binario
         foto = getattr(self, "foto_bytes", None)
 
-        aprobado = productos.aprobar_producto(
+        aprobado, error = productos.aprobar_producto(
             codigo=self.codigo,
             nombre=nombre,
             descripcion=descripcion,
@@ -208,14 +220,15 @@ class AprobarProductoDialog(QDialog):
             precio_venta=precio_venta,
             precio_compra=self.precio_compra.value(),
             stock_minimo=self.stock_minimo.value(),
-            foto_bytes=foto
+            foto_bytes=foto,
+            item_id=self.item_id
         )
 
         if aprobado:
             QMessageBox.information(self, "Listo", "🟢 Producto aprobado y activado.")
             self.accept()
         else:
-            QMessageBox.critical(self, "Error", "No se pudo aprobar el producto.")
+            QMessageBox.critical(self, "Error", error)
 
     def cargar_desde_archivo(self):
         ruta, _ = QFileDialog.getOpenFileName(self, "Seleccionar imagen", "", "Imágenes (*.png *.jpg *.jpeg)")

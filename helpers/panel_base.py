@@ -3,18 +3,23 @@ from helpers.encabezado_widget import EncabezadoWidget
 from helpers.mixin_cuenta import *
 from dialogs.buscar_producto import BuscarProductoDialog
 from dialogs.ver_productos import VerProductosDialog
-from core.configuracion import obtener_configuracion_sistema
+from core.configuracion import obtener_configuracion_sistema, config_signals
 
 class BasePanel(QMainWindow, MixinCuentaUsuario):
     def __init__(self, sesion: dict, router=None):
         super().__init__()
         self.sesion = sesion
         self.router = router
+        self.config_sistema = obtener_configuracion_sistema()
         self.setMinimumSize(700, 500)
         self.setWindowTitle(self.titulo_ventana())
+
+        # 🔄 Escuchar cambios de configuración si el panel lo necesita
+        if hasattr(self, "actualizar_configuracion"):
+            config_signals.configuracion_actualizada.connect(self.actualizar_configuracion)
+
         self._inicializar_ui()
         self.showMaximized()
-        self.config_sistema = obtener_configuracion_sistema()
 
 
     def _inicializar_ui(self):
@@ -29,7 +34,6 @@ class BasePanel(QMainWindow, MixinCuentaUsuario):
         self.contenido_principal(layout)
 
         contenedor.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
         contenedor.setLayout(layout)
         self.setCentralWidget(contenedor)
 

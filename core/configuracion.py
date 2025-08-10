@@ -1,5 +1,10 @@
 from bbdd.db_config import conectar_db
+from PySide6.QtCore import QObject, Signal
 
+class ConfigSignals(QObject):
+    configuracion_actualizada = Signal()
+
+config_signals = ConfigSignals()
 
 def obtener_config_empresa():
     conn = conectar_db()
@@ -35,3 +40,5 @@ def guardar_configuracion_sistema(config: dict):
         """, (clave, valor))
     conn.commit()
     cur.close()
+
+

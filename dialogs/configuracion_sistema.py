@@ -1,18 +1,19 @@
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QGroupBox, QRadioButton, QPushButton, QLabel,
                                    QHBoxLayout, QMessageBox)
 from PySide6.QtCore import Signal
-from core.configuracion import guardar_configuracion_sistema
+from core.configuracion import guardar_configuracion_sistema, obtener_configuracion_sistema, config_signals
 
-class PreferenciasSistemaDialog(QDialog):
-    preferencias_actualizadas = Signal(dict)  # Emitir cambios si querés actualizar la sesión
+class ConfiguracionSistemaDialog(QDialog):
+    # configuracion_actualizada = Signal(dict)  # Emitir cambios si querés actualizar la sesión
 
-    def __init__(self, sesion, parent=None):
+    def __init__(self, sesion, config_sistema, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("⚙️ Preferencias de sistema")
+        self.setWindowTitle("⚙️ Configuración de sistema")
         self.setMinimumWidth(400)
         self.sesion = sesion
+        self.config_sistema = config_sistema
         self.setup_ui()
-        self.cargar_preferencias()
+        self.cargar_configuraciones()
 
     def setup_ui(self):
         self.layout = QVBoxLayout(self)
@@ -49,11 +50,12 @@ class PreferenciasSistemaDialog(QDialog):
         self.layout.addLayout(btn_layout)
 
         # 🔗 Conexiones
-        self.btn_guardar.clicked.connect(self.guardar_preferencias)
+        self.btn_guardar.clicked.connect(self.guardar_configuraciones)
         self.btn_cancelar.clicked.connect(self.reject)
 
-    def cargar_preferencias(self):
-        modo = self.sesion.get("modo_codigo_barra", "mixto")
+    def cargar_configuraciones(self):
+        # Modo de código de barra
+        modo = self.config_sistema.get("modo_codigo_barra", "mixto")
         if modo == "auto":
             self.radio_auto.setChecked(True)
         elif modo == "manual":
@@ -61,17 +63,20 @@ class PreferenciasSistemaDialog(QDialog):
         else:
             self.radio_mixto.setChecked(True)
 
-    def guardar_preferencias(self):
+    def guardar_configuraciones(self):
+        # Modo de codigo de barra
         if self.radio_auto.isChecked():
             modo = "auto"
         elif self.radio_manual.isChecked():
             modo = "manual"
         else:
             modo = "mixto"
+        self.config_sistema["modo_codigo_barra"] = modo
 
         # 🔄 Actualizar sesión y emitir señal
-        guardar_configuracion_sistema({"modo_codigo_barra": modo})
-        self.preferencias_actualizadas.emit({"modo_codigo_barra": modo})
+        guardar_configuracion_sistema(self.config_sistema)
+        config_signals.configuracion_actualizada.emit()
+        self.config_sistema = obtener_configuracion_sistema()
 
-        QMessageBox.information(self, "Preferencias guardadas", "✅ Tus preferencias fueron actualizadas.")
+        QMessageBox.information(self, "Configuración guardada", "✅ Tus configuraciones fueron actualizadas.")
         self.accept()

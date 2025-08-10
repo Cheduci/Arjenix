@@ -168,7 +168,53 @@ def obtener_producto_por_codigo(codigo: str) -> dict | None:
         raise RuntimeError(f"No se pudo obtener el producto: {e}")
     finally:
         cur.close()
-    
+
+def obtener_producto_por_id(id):
+    try:
+        conn = db_config.conectar_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                p.id,
+                p.nombre,
+                p.codigo_barra,
+                COALESCE(p.descripcion, ''),
+                COALESCE(c.nombre, 'Sin categoría'),
+                COALESCE(p.stock_actual, 0),
+                COALESCE(p.stock_minimo, 0),
+                COALESCE(p.precio_compra, 0),
+                COALESCE(p.precio_venta, 0),
+                COALESCE(p.estado, 'pendiente'),
+                p.foto  -- si es BYTEA, dejala sin COALESCE
+            FROM productos p
+            LEFT JOIN categorias c ON p.categoria_id = c.id
+            WHERE p.id = %s
+        """, (id,))
+
+        fila = cur.fetchone()
+        conn.close()
+
+        if fila:
+            return {
+                "id": fila[0],
+                "nombre": fila[1],
+                "codigo_barra": fila[2],
+                "descripcion": fila[3],
+                "categoria": fila[4],
+                "stock_actual": fila[5],
+                "stock_minimo": fila[6],
+                "precio_compra": float(fila[7]),
+                "precio_venta": float(fila[8]),
+                "estado": fila[9],
+                "foto": fila[10]
+            }
+        return None
+    except Exception as e:
+        raise RuntimeError(f"No se pudo obtener el producto: {e}")
+    finally:
+        cur.close()
+
 def obtener_basico_por_codigo(codigo: str) -> dict | None:
     """
     Retorna los campos mínimos de un producto: nombre, código, stock, fecha de creación.
@@ -221,7 +267,7 @@ class GeneradorEAN13:
                 return ean13
 def aprobar_producto(codigo: str, nombre: str, descripcion: str, categoria: str,
                      precio_venta: float, precio_compra: float | None,
-                     stock_minimo: int | None, foto_bytes: bytes | None = None) -> bool:
+                     stock_minimo: int | None, item_id: int, foto_bytes: bytes | None = None) -> bool:
     try:
         conn = db_config.conectar_db()
         cur = conn.cursor()
@@ -237,12 +283,12 @@ def aprobar_producto(codigo: str, nombre: str, descripcion: str, categoria: str,
 
         # 💰 Validación de precios
         if precio_compra is not None and precio_venta < precio_compra:
-            print("❌ El precio de venta no puede ser menor que el de compra.")
-            return False
+            return False, "❌ El precio de venta no puede ser menor que el de compra."
 
         # Armar UPDATE dinámico
         columnas = [
             "nombre = %s",
+            "codigo_barra = %s",
             "descripcion = %s",
             "categoria_id = %s",
             "precio_venta = %s",
@@ -250,28 +296,27 @@ def aprobar_producto(codigo: str, nombre: str, descripcion: str, categoria: str,
             "stock_minimo = %s",
             "estado = 'activo'"
         ]
-        valores = [nombre, descripcion, categoria_id, precio_venta, precio_compra, stock_minimo]
+        valores = [nombre, codigo, descripcion, categoria_id, precio_venta, precio_compra, stock_minimo]
 
         if foto_bytes is not None:
             columnas.append("foto = %s")
             valores.append(foto_bytes)
 
-        valores.append(codigo)
+        valores.append(item_id)
 
         consulta = f"""
             UPDATE productos SET
                 {', '.join(columnas)}
-            WHERE codigo_barra = %s
+            WHERE id = %s
         """
 
         cur.execute(consulta, tuple(valores))
         conn.commit()
         conn.close()
-        return True
+        return True, None
 
     except Exception as e:
-        print(f"❌ Error al aprobar producto: {e}")
-        return False
+        return False, f"❌ Error al aprobar producto: {e}"
 
 def obtener_pendientes_de_aprobacion() -> list[dict]:
     try:
@@ -279,7 +324,7 @@ def obtener_pendientes_de_aprobacion() -> list[dict]:
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT nombre, codigo_barra, stock_actual, fecha_creacion
+            SELECT id, nombre, codigo_barra, stock_actual, fecha_creacion
             FROM productos
             WHERE estado = 'pendiente'
             ORDER BY fecha_creacion ASC
@@ -289,10 +334,11 @@ def obtener_pendientes_de_aprobacion() -> list[dict]:
 
         return [
             {
-                "nombre": f[0],
-                "codigo_barra": f[1],
-                "stock_actual": f[2],
-                "fecha_creacion": f[3]
+                "id": f[0],
+                "nombre": f[1],
+                "codigo_barra": f[2],
+                "stock_actual": f[3],
+                "fecha_creacion": f[4]
             }
             for f in filas
         ]

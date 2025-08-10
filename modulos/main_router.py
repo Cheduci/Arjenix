@@ -25,7 +25,7 @@ class MainRouter:
         rol = self.sesion.get("rol")
 
         if rol == "dueño":
-            self.ventana = PanelDueño(self.sesion)
+            self.ventana = PanelDuegno(self.sesion)
         elif rol == "repositor":
             self.ventana = PanelRepositor(self.sesion)
         elif rol == "gerente":
