@@ -7,6 +7,7 @@ from PySide6.QtGui import QImage
 import numpy as np
 from pyzbar.pyzbar import decode
 from collections import deque, Counter
+import time
 
 
 
@@ -29,8 +30,8 @@ class CamaraLoopThread(QThread):
         self._activo = False
 
     def run(self):
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
+        self.cap = cv2.VideoCapture(0)
+        if not self.cap.isOpened():
             print("❌ No se pudo abrir la cámara.")
             return
 
@@ -40,8 +41,9 @@ class CamaraLoopThread(QThread):
             if self._pausado:
                 QThread.msleep(50)
                 continue
-            ret, frame = cap.read()
+            ret, frame = self.cap.read()
             if not ret:
+                self.reiniciar_camara()
                 continue
 
             frame = cv2.resize(frame, (640, 480))
@@ -67,9 +69,16 @@ class CamaraLoopThread(QThread):
                             self._ultimo_codigo = más_frecuente
                             self._cooldown.restart()
 
-        cap.release()
+        self.cap.release()
         # cv2.destroyAllWindows()
-
+    def reiniciar_camara(self):
+        self.cap.release()
+        time.sleep(1)  # pequeña pausa
+        self.cap = cv2.VideoCapture(0)
+        if not self.cap.isOpened():
+            print("❌ No se pudo reabrir la cámara.")
+            self._activo = False
+        
     def procesar_frame(self, frame) -> str | None:
         # Dibuja la instrucción sobre el frame
         cv2.putText(frame, "ESC = cancelar escaneo", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)

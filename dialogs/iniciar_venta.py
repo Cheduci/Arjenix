@@ -287,7 +287,7 @@ class IniciarVentaDialog(QDialog):
 
     def cancelar_venta(self):
         if not self.carrito:
-            self.reject()
+            self.close()
             return
         confirm = QMessageBox.question(
             self,
@@ -296,8 +296,9 @@ class IniciarVentaDialog(QDialog):
             QMessageBox.Yes | QMessageBox.No
         )
         if confirm == QMessageBox.Yes:
+            self.carrito.clear()
             self.actualizar_estado_completar()
-            self.reject()
+            self.close()
 
     def confirmar_venta(self):
         if not self.carrito:
