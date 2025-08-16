@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (QDialog, QHBoxLayout, QTableWidget, QAbstractItem
 from dialogs.buscar_producto import BuscarProductoDialog
 from helpers.dialogos import pedir_codigo_barras, solicitar_cantidad
 from core.productos import obtener_producto_por_codigo, modificar_stock, obtener_stock_actual
+from core.reposiciones import registrar_reposicion
 from modulos.camara import escanear_codigo_opencv
 from PySide6.QtMultimedia import QSoundEffect
 from PySide6.QtCore import QUrl
@@ -143,13 +144,16 @@ class RegistrarReposicionDialog(QDialog):
             producto = item["producto"]
             cantidad_reponer = item["cantidad"]
             codigo = producto["codigo_barra"]
+            motivo = item.get("motivo", "Reposición manual desde panel")  # si lo tenés
+            usuario_id = self.sesion.get("id")
 
             try:
                 stock_actual = obtener_stock_actual(codigo)
                 nuevo_stock = stock_actual + cantidad_reponer
-                exito = modificar_stock(codigo, nuevo_stock)
+                exito_stock = modificar_stock(codigo, nuevo_stock)
+                exito_repo = registrar_reposicion(codigo, cantidad_reponer, usuario_id, motivo)
 
-                if not exito:
+                if not (exito_stock and exito_repo):
                     errores.append(f"{producto['nombre']}: error al actualizar el stock.")
             except Exception as e:
                 errores.append(f"{producto['nombre']}: {str(e)}")
