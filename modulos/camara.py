@@ -15,7 +15,7 @@ def escanear_codigo_opencv():
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("⚠️ Error al capturar imagen.")
+            QMessageBox.warning("⚠️ Error al capturar imagen.")
             # QMessageBox.
             break
 

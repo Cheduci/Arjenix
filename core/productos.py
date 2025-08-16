@@ -1,5 +1,7 @@
 from bbdd import db_config
 import random
+from typing import List, Dict, Union
+from datetime import datetime
 
 def buscar_productos(nombre: str = "", codigo: str = "", categoria: str | None = None):
     conn = db_config.conectar_db()
@@ -488,8 +490,63 @@ def guardar_codigo(codigo,id_producto):
         conn.close()
         return True, None
     except Exception as e:
-        print(f"Error al guardar código: {e}")
+        # print(f"Error al guardar código: {e}")
         return False, str(e)
+    finally:
+        if conn:
+            conn.close()
+
+def movimientos_exportables(fecha_inicio: str, fecha_fin: str, codigos: List[str], tipo: str = "Ambos") -> List[dict]:
+    if not codigos:
+        return None, "No se han seleccionado códigos de productos."
+
+    try:
+        conn = db_config.conectar_db()
+        cur = conn.cursor()
+
+        # Construir la consulta base
+        placeholders = ",".join(["%s"] * len(codigos))
+        params = codigos + [fecha_inicio, fecha_fin]
+        movimientos = []
+
+        query_reposiciones = f"""
+            SELECT p.nombre, p.codigo_barra, p.stock_actual, p.precio_venta,
+                r.fecha_hora AS fecha, r.cantidad, 'Reposición' AS tipo_movimiento,
+                u.username AS usuario
+            FROM reposiciones r
+            JOIN productos p ON r.producto_id = p.id
+            LEFT JOIN usuarios u ON r.usuario_id = u.id
+            WHERE p.codigo_barra IN ({placeholders})
+            AND r.fecha_hora BETWEEN %s AND %s
+        """
+
+        query_ventas = f"""
+            SELECT p.nombre, p.codigo_barra, p.stock_actual, p.precio_venta,
+                v.fecha_hora AS fecha, dv.cantidad, 'Venta' AS tipo_movimiento,
+                v.usuario AS usuario
+            FROM detalle_ventas dv
+            JOIN productos p ON dv.producto_id = p.id
+            JOIN ventas v ON dv.venta_id = v.id
+            WHERE p.codigo_barra IN ({placeholders})
+            AND v.fecha_hora BETWEEN %s AND %s
+        """
+
+        if tipo in ("Reposición", "Ambos"):
+            cur.execute(query_reposiciones, params)
+            colnames = [desc[0] for desc in cur.description]
+            movimientos += [dict(zip(colnames, row)) for row in cur.fetchall()]
+
+        if tipo in ("Venta", "Ambos"):
+            cur.execute(query_ventas, params)
+            colnames = [desc[0] for desc in cur.description]
+            movimientos += [dict(zip(colnames, row)) for row in cur.fetchall()]
+
+        movimientos.sort(key=lambda m: m["fecha"])
+        
+        return movimientos, None
+    
+    except Exception as e:
+        return None, str(e)
     finally:
         if conn:
             conn.close()

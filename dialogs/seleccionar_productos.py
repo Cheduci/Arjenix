@@ -34,7 +34,7 @@ class SeleccionarProductosDialog(QDialog):
         panel.addStretch()
 
         self.btn_aceptar = QPushButton("Aceptar")
-        self.btn_aceptar.clicked.connect(self.accept)
+        self.btn_aceptar.clicked.connect(self.aceptar)
         panel.addWidget(self.btn_aceptar)
 
         self.btn_cancelar = QPushButton("Cancelar")
@@ -66,3 +66,7 @@ class SeleccionarProductosDialog(QDialog):
     
     def obtener_nombres_seleccionados(self) -> list[str]:
         return [c[1] for c in self.productos_seleccionados]
+    
+    def aceptar(self):
+        self.codigos_seleccionados = self.obtener_codigos_seleccionados()
+        self.accept()

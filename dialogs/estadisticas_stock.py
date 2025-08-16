@@ -7,15 +7,16 @@ from matplotlib.figure import Figure
 from bbdd.db_config import conectar_db
 from dialogs.seleccionar_productos import SeleccionarProductosDialog
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
+from core.productos import movimientos_exportables
 
 class EstadisticasStockDialog(QDialog):
     def __init__(self, sesion):
         super().__init__()
         self.sesion = sesion
+        self.codigos_seleccionados = []
         self.setWindowTitle("📈 Estadísticas de stock")
         self.setMinimumSize(720, 520)
-
         self.setup_ui()
 
     def setup_ui(self):
@@ -94,6 +95,7 @@ class EstadisticasStockDialog(QDialog):
             self.codigos_seleccionados = dlg.obtener_codigos_seleccionados()
             nombres = dlg.obtener_nombres_seleccionados()
             self.productos_label.setText(f"🔍 Productos seleccionados: {', '.join(nombres)}")
+            print("Codigos seleccionados:", self.codigos_seleccionados)
 
             self.actualizar_resultados()
 
@@ -112,9 +114,19 @@ class EstadisticasStockDialog(QDialog):
         elif tipo == "Alertas de reposición":
             datos = self.alertas_reposicion()
         elif tipo == "Movimientos detallados":
-            self.tabla.setRowCount(0)
-            self.tabla.setColumnCount(1)
-            self.tabla.setHorizontalHeaderLabels(["Este análisis se exporta directamente en CSV"])
+            datos_completos = self.resumen_por_producto(
+                self.fecha_inicio.date().toString("yyyy-MM-dd"),
+                self.fecha_fin.date().toString("yyyy-MM-dd"),
+                self.codigos_seleccionados
+            )
+
+            # 🔍 Filtrar solo las columnas deseadas para la tabla
+            columnas_preview = ["Producto", "Código", "Total Vendido", "Total Repuesto", "Stock Actual", "Último Movimiento"]
+            datos = []
+
+            for fila in datos_completos:
+                preview = {col: fila.get(col, "—") for col in columnas_preview}
+                datos.append(preview)
         else:
             datos = []
 
@@ -161,12 +173,19 @@ class EstadisticasStockDialog(QDialog):
         elif tipo == "Alertas de reposición":
             datos = self.alertas_reposicion()
         elif tipo == "Movimientos detallados":
-            datos = self.movimientos_exportables(
+            datos, movimientos = self.movimientos_detallados(
                 self.fecha_inicio.date().toString("yyyy-MM-dd"),
                 self.fecha_fin.date().toString("yyyy-MM-dd"),
                 self.codigos_seleccionados,
                 tipo="Ambos"
             )
+            # 🧾 Elegir qué exportar: versión completa
+            datos = movimientos
+
+            # 🧼 Formatear fechas si es datetime
+            for fila in datos:
+                if isinstance(fila.get("fecha"), datetime):
+                    fila["fecha"] = fila["fecha"].strftime("%Y-%m-%d %H:%M")
         else:
             datos = []
 
@@ -261,52 +280,69 @@ class EstadisticasStockDialog(QDialog):
             {"Producto": "Fideos", "Frecuencia promedio (días)": 6.3, "Alerta": "⚪ Sin anomalías"}
         ]
 
-    def movimientos_exportables(self, fecha_inicio, fecha_fin, codigos, tipo="Ambos"):
-    # Datos ficticios para testear exportación
-        return [
-            {
-                "Producto": "Leche",
-                "Fecha": "2025-07-10",
-                "Hora": "14:22",
-                "Tipo de movimiento": "Venta",
-                "Cantidad": 2,
-                "Precio de compra": 250.00,
-                "Precio de venta": 320.00,
-                "Usuario": "florencia",
-                "Stock actual": 18
-            },
-            {
-                "Producto": "Leche",
-                "Fecha": "2025-07-11",
-                "Hora": "09:15",
-                "Tipo de movimiento": "Reposición",
-                "Cantidad": 5,
-                "Precio de compra": 245.00,
-                "Precio de venta": "",
-                "Usuario": "carlos",
-                "Stock actual": 23
-            },
-            {
-                "Producto": "Yerba mate",
-                "Fecha": "2025-07-12",
-                "Hora": "10:30",
-                "Tipo de movimiento": "Venta",
-                "Cantidad": 1,
-                "Precio de compra": 390.00,
-                "Precio de venta": 470.00,
-                "Usuario": "lucas",
-                "Stock actual": 12
-            },
-            {
-                "Producto": "Yerba mate",
-                "Fecha": "2025-07-13",
-                "Hora": "17:00",
-                "Tipo de movimiento": "Reposición",
-                "Cantidad": 6,
-                "Precio de compra": 395.00,
-                "Precio de venta": "",
-                "Usuario": "sistema",
-                "Stock actual": 18
-            }
-        ]
+    def movimientos_detallados(self, fecha_inicio, fecha_fin, codigos, tipo="Ambos"):
+        # Llamada a la función de exportación de movimientos
+        fecha_fin_extendida = fecha_fin + timedelta(days=1)
+        movimientos, error = movimientos_exportables(fecha_inicio, fecha_fin_extendida, codigos, tipo)
 
+        if movimientos is None:
+            QMessageBox.warning(self, "Error", f"No se pudieron obtener los movimientos: {error}")
+            return [], []
+
+        # Simplificar para mostrar en tabla
+        datos = []
+        for mov in movimientos:
+            datos.append({
+                "Fecha": mov["fecha"].strftime("%Y-%m-%d %H:%M"),
+                "Producto": mov["nombre"],
+                "Código": mov["codigo_barra"],
+                "Tipo": mov["tipo_movimiento"],
+                "Cantidad": mov["cantidad"],
+                "Usuario": mov["usuario"] or "—"
+            })
+
+        return datos, movimientos
+
+    def resumen_por_producto(self, fecha_inicio, fecha_fin, codigos):
+        movimientos, error = movimientos_exportables(fecha_inicio, fecha_fin, codigos, tipo="Ambos")
+
+        if movimientos is None:
+            QMessageBox.warning(self, "Error", f"No se pudieron obtener los movimientos: {error}")
+            return []
+
+        resumen = {}
+        for mov in movimientos:
+            cod = mov["codigo_barra"]
+            if cod not in resumen:
+                resumen[cod] = {
+                    "Producto": mov["nombre"],
+                    "Código": cod,
+                    "Total Vendido": 0,
+                    "Total Repuesto": 0,
+                    "Stock Actual": mov["stock_actual"],
+                    "Último Movimiento": mov["fecha"]
+                }
+
+            if mov["tipo_movimiento"] == "Venta":
+                resumen[cod]["Total Vendido"] += abs(mov["cantidad"])
+            elif mov["tipo_movimiento"] == "Reposición":
+                resumen[cod]["Total Repuesto"] += mov["cantidad"]
+
+            # Actualizar stock actual y fecha si es más reciente
+            if mov["fecha"] > resumen[cod]["Último Movimiento"]:
+                resumen[cod]["Stock Actual"] = mov["stock_actual"]
+                resumen[cod]["Último Movimiento"] = mov["fecha"]
+
+        # Formatear para tabla
+        datos = []
+        for r in resumen.values():
+            datos.append({
+                "Producto": r["Producto"],
+                "Código": r["Código"],
+                "Total Vendido": r["Total Vendido"],
+                "Total Repuesto": r["Total Repuesto"],
+                "Stock Actual": r["Stock Actual"],
+                "Último Movimiento": r["Último Movimiento"].strftime("%Y-%m-%d %H:%M")
+            })
+
+        return datos

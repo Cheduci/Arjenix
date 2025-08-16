@@ -1,6 +1,4 @@
 from PySide6.QtCore import QThread, Signal
-from modulos.camara import escanear_codigo_opencv
-from modulos.camara import leer_codigo_desde_frame
 import cv2
 from PySide6.QtCore import QElapsedTimer
 from PySide6.QtGui import QImage
@@ -8,7 +6,8 @@ import numpy as np
 from pyzbar.pyzbar import decode
 from collections import deque, Counter
 import time
-
+import sys
+import os
 
 
 
@@ -24,6 +23,8 @@ class CamaraLoopThread(QThread):
         self._ultimo_codigo = ""
         self._cooldown = QElapsedTimer()
         self._historial = deque(maxlen=5)
+        self._stderr_original = os.dup(sys.stderr.fileno())
+        self._devnull = os.open(os.devnull, os.O_WRONLY)
         
 
     def detener(self):
@@ -79,11 +80,24 @@ class CamaraLoopThread(QThread):
             print("❌ No se pudo reabrir la cámara.")
             self._activo = False
         
+    def silenciar_stderr(self):
+        os.dup2(self._devnull, sys.stderr.fileno())
+
+    def restaurar_stderr(self):
+        os.dup2(self._stderr_original, sys.stderr.fileno())
+
     def procesar_frame(self, frame) -> str | None:
         # Dibuja la instrucción sobre el frame
         cv2.putText(frame, "ESC = cancelar escaneo", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
-        decoded_objs = decode(frame)
+        self.silenciar_stderr()
+        try:
+            decoded_objs = decode(frame)
+        except Exception:
+            self.restaurar_stderr()
+            return None
+        self.restaurar_stderr()
+        
         for obj in decoded_objs:
             puntos = obj.polygon
             hull = cv2.convexHull(np.array(puntos, dtype=np.float32)) if len(puntos) > 4 else puntos
