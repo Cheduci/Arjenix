@@ -304,7 +304,10 @@ class EstadisticasStockDialog(QDialog):
         return datos, movimientos
 
     def resumen_por_producto(self, fecha_inicio, fecha_fin, codigos):
-        movimientos, error = movimientos_exportables(fecha_inicio, fecha_fin, codigos, tipo="Ambos")
+        if isinstance(fecha_fin, str):
+            fecha_fin = datetime.strptime(fecha_fin, "%Y-%m-%d")
+        fecha_fin_extendida = fecha_fin + timedelta(days=1)
+        movimientos, error = movimientos_exportables(fecha_inicio, fecha_fin_extendida, codigos, tipo="Ambos")
 
         if movimientos is None:
             QMessageBox.warning(self, "Error", f"No se pudieron obtener los movimientos: {error}")
