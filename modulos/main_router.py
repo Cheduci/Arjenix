@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QApplication
 from modulos.login_window import LoginWindow
-from dialogs.paneles import *
+from paneles.paneles import *
 from modulos import setup_inicial
 import sys
 
