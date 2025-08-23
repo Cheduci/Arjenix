@@ -15,8 +15,8 @@ from dialogs.registrar_reposicion import RegistrarReposicionDialog
 from dialogs.reporte_diario import ReporteDiarioDialog
 from dialogs.gestor_personas import GestorPersonasDialog
 from dialogs.configuracion_sistema import ConfiguracionSistemaDialog
-from helpers.mixin_cuenta import *
-from helpers.panel_base import *
+from paneles.mixin_cuenta import *
+from paneles.panel_base import *
 
 
 def crear_box_productos(parent):
@@ -369,6 +369,13 @@ class PanelDuegno(PanelGerente):
         dialogo = GestorPersonasDialog(self)
         dialogo.exec_()
 
+    def configurar_sistema(self):
+        paneles = self.findChildren(PanelAjustesSistema)
+        if paneles:
+            paneles[0].abrir_configuracion()
+        else:
+            QMessageBox.warning(self, "Configuración", "No se encontró el panel de ajustes.")
+
 
     # 📊 Menú “Administración” en MenuDueño busca estos métodos:
     def gestionar_roles(self):
@@ -377,5 +384,4 @@ class PanelDuegno(PanelGerente):
     def ver_auditoria(self):
         QMessageBox.information(self, "Auditoría", "📊 Auditoría del sistema: próximamente.")
 
-    def configurar_sistema(self):
-        QMessageBox.information(self, "Configuración", "⚙️ Parámetros del sistema: próximamente.")
+    

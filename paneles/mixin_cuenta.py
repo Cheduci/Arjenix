@@ -84,6 +84,12 @@ class MenuGerente(MenuGeneral):
         if callbacks.get("ver_estadisticas"):
             menu_gestion.addAction("📈 Ver estadísticas", callbacks["ver_estadisticas"])
 
+        if callbacks.get("ver_ranking_ventas"):
+            menu_gestion.addAction("🏆 Ranking de productos vendidos", callbacks["ver_ranking_ventas"])
+
+        if callbacks.get("mostrar_reporte_diario"):
+            menu_gestion.addAction("🗓️ Reporte de ganancias", callbacks["mostrar_reporte_diario"])
+
 class MenuDueño(MenuGerente):
     def construir(self, ventana, callbacks):
         super().construir(ventana, callbacks)
@@ -97,6 +103,8 @@ class MenuDueño(MenuGerente):
         if callbacks.get("ver_auditoria"):
             menu_admin.addAction("📊 Auditoría", callbacks["ver_auditoria"])
         if callbacks.get("configurar_sistema"):
-            menu_admin.addAction("⚙️ Parámetros del sistema", callbacks["configurar_sistema"])
-
-    
+            menu_admin.addAction("⚙️ Configuración de sistema", callbacks["configurar_sistema"])
+        if callbacks.get("gestionar_personas"):
+            menu_admin.addAction("🧑‍🤝‍🧑 Personas", callbacks["gestionar_personas"])
+        if callbacks.get("gestionar_categorias"):
+            menu_admin.addAction("🗂️ Categorías", callbacks["gestionar_categorias"])

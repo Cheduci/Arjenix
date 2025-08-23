@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QSizePolicy
 from helpers.encabezado_widget import EncabezadoWidget
-from helpers.mixin_cuenta import *
+from paneles.mixin_cuenta import *
 from dialogs.buscar_producto import BuscarProductoDialog
 from dialogs.ver_productos import VerProductosDialog
 from core.configuracion import obtener_configuracion_sistema, config_signals
@@ -42,13 +42,7 @@ class BasePanel(QMainWindow, MixinCuentaUsuario):
 
     def crear_menu(self):
         rol = self.sesion.get("rol", "")
-        callbacks = {
-            "ver_datos": self.ver_datos_usuario,
-            "actualizar_email": self.actualizar_email,
-            "cambiar_contrasena": self.cambiar_contraseña,
-            "cerrar_sesion": self.cerrar_sesion,
-            "gestionar_pendientes": getattr(self, "abrir_visor_pendientes", None)
-        }
+        callbacks = self.obtener_callbacks_por_rol()
 
         if rol == "dueño":
             MenuDueño().construir(self, callbacks)
@@ -70,3 +64,33 @@ class BasePanel(QMainWindow, MixinCuentaUsuario):
     def ver_todos_los_productos(self):
         dialogo = VerProductosDialog(self.sesion, self.config_sistema)
         dialogo.exec()
+
+    def obtener_callbacks_por_rol(self) -> dict:
+        base = {
+            "ver_datos": self.ver_datos_usuario,
+            "actualizar_email": self.actualizar_email,
+            "cambiar_contrasena": self.cambiar_contraseña,
+            "cerrar_sesion": self.cerrar_sesion
+        }
+
+        rol = self.sesion.get("rol", "")
+        if rol == "gerente":
+            base.update({
+                "gestionar_pendientes": getattr(self, "gestionar_pendientes", None),
+                "ver_estadisticas": getattr(self, "ver_estadisticas", None),
+                "ver_ranking_ventas": getattr(self, "ver_ranking_ventas", None),
+                "mostrar_reporte_diario": getattr(self, "mostrar_reporte_diario", None)
+            })
+        elif rol == "dueño":
+            base.update({
+                "gestionar_pendientes": getattr(self, "gestionar_pendientes", None),
+                "ver_estadisticas": getattr(self, "ver_estadisticas", None),
+                "ver_ranking_ventas": getattr(self, "ver_ranking_ventas", None),
+                "mostrar_reporte_diario": getattr(self, "mostrar_reporte_diario", None),
+                "gestionar_usuarios": getattr(self, "abrir_gestor_usuarios", None),
+                "gestionar_roles": getattr(self, "gestionar_roles", None),
+                "ver_auditoria": getattr(self, "ver_auditoria", None),
+                "configurar_sistema": getattr(self, "configurar_sistema", None)
+            })
+
+        return base
