@@ -1,13 +1,16 @@
 # db_config.py
 from psycopg import sql, OperationalError, connect
 import ctypes
-import os
+import os, configparser
 
-DB_NAME = "arjenix"
-DB_USER = "postgres"
-DB_PASSWORD = "39416072"
-DB_HOST = "127.0.0.1"
-DB_PORT = "5432"
+config = configparser.ConfigParser()
+config.read("bbdd/arjenix_config.ini")
+
+DB_NAME = config.get("DB", "name")
+DB_USER = config.get("DB", "user")
+DB_PASSWORD = config.get("DB", "password")
+DB_HOST = config.get("DB", "host")
+DB_PORT = config.get("DB", "port")
 SCHEMA_PATH = "bbdd/schema.sql"
 
 def crear_base_de_datos():
