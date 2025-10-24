@@ -4,13 +4,22 @@ import ctypes
 import os, configparser
 
 config = configparser.ConfigParser()
-config.read("bbdd/arjenix_config.ini")
 
-DB_NAME = config.get("DB", "name")
-DB_USER = config.get("DB", "user")
-DB_PASSWORD = config.get("DB", "password")
-DB_HOST = config.get("DB", "host")
-DB_PORT = config.get("DB", "port")
+# Ruta robusta que funciona dentro del .exe
+base_dir = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(base_dir, "arjenix_config.ini")
+
+config.read(config_path)
+
+if "DB" not in config:
+    raise configparser.NoSectionError("DB")
+
+db = config["DB"]
+DB_NAME = db["name"]
+DB_USER = db["user"]
+DB_PASSWORD = db["password"]
+DB_HOST = db["host"]
+DB_PORT = db["port"]
 SCHEMA_PATH = "bbdd/schema.sql"
 
 def crear_base_de_datos():
