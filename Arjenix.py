@@ -1,11 +1,16 @@
+# Arjenix.py
+import sys
+from PySide6.QtWidgets import QApplication, QMessageBox
+from dialogs.config_setup import asegurar_configuracion
 from bbdd.db_config import conectar_db
 from modulos.main_router import MainRouter
-from PySide6.QtWidgets import QMessageBox, QApplication
-from psycopg import OperationalError
-import sys
 
 def main():
     app = QApplication(sys.argv)
+
+    # Paso previo: asegurar configuración
+    asegurar_configuracion()
+
     try:
         conn = conectar_db()
         cur = conn.cursor()
@@ -15,7 +20,6 @@ def main():
         router = MainRouter(arranca_con_setup=not tiene_usuarios)
         sys.exit(app.exec())
 
-    
     except ConnectionError as e:
         QMessageBox.critical(None, "Error de conexión", str(e))
         sys.exit(1)
