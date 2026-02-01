@@ -99,4 +99,8 @@ def conectar_db():
         )
         return conn
     except OperationalError as e:
+        # Si falla la conexión, borramos el ini para forzar reingreso en el próximo arranque
+        if os.path.isfile(config_path):
+            os.remove(config_path)
         raise ConnectionError(f"No se pudo conectar a la base de datos:\n{e}")
+        

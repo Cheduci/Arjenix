@@ -80,3 +80,7 @@ def asegurar_configuracion():
             sys.exit(0)
 
     return dict(config["DB"])
+
+def borrar_configuracion():
+    if os.path.isfile(CONFIG_PATH):
+        os.remove(CONFIG_PATH)
